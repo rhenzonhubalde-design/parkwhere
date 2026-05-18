@@ -80,6 +80,142 @@ app.get('/api/carparks', async (req, res) => {
   }
 });
 
+const INCIDENTS_ENDPOINT = 'https://datamall2.mytransport.sg/ltaodataservice/TrafficIncidents';
+let incidentsCache = { data: null, fetchedAt: 0 };
+
+app.get('/api/incidents', async (req, res) => {
+  const now = Date.now();
+  if (incidentsCache.data && now - incidentsCache.fetchedAt < CACHE_TTL_MS) {
+    return res.json({
+      data: incidentsCache.data,
+      fetchedAt: new Date(incidentsCache.fetchedAt).toISOString(),
+      stale: false,
+    });
+  }
+
+  try {
+    const r = await fetch(INCIDENTS_ENDPOINT, {
+      headers: { AccountKey: LTA_API_KEY, Accept: 'application/json' },
+    });
+    if (!r.ok) throw new Error(`LTA API responded ${r.status} ${r.statusText}`);
+    const json = await r.json();
+    const data = Array.isArray(json.value) ? json.value : [];
+    incidentsCache = { data, fetchedAt: now };
+    res.json({ data, fetchedAt: new Date(now).toISOString(), stale: false });
+  } catch (err) {
+    console.error('[lta] incidents fetch failed:', err.message);
+    if (incidentsCache.data) {
+      return res.json({
+        data: incidentsCache.data,
+        fetchedAt: new Date(incidentsCache.fetchedAt).toISOString(),
+        stale: true,
+        error: err.message,
+      });
+    }
+    res.status(502).json({ error: 'Upstream LTA API unavailable', detail: err.message });
+  }
+});
+
+// ---------- EV charging (EVCBatch: all stations + live availability) ----------
+const EVCBATCH_ENDPOINT = 'https://datamall2.mytransport.sg/ltaodataservice/EVCBatch';
+const EV_TTL_MS = 4.5 * 60 * 1000; // LTA refreshes every 5 min; signed link valid 5 min
+let evCache = { data: null, fetchedAt: 0 };
+
+function summariseEVStations(raw) {
+  // The batch file nests the array under a few possible shapes.
+  const arr =
+    (raw && raw.value && raw.value.evLocationsData) ||
+    (raw && raw.evLocationsData) ||
+    (Array.isArray(raw && raw.value) ? raw.value : null) ||
+    [];
+
+  const out = [];
+  for (const loc of arr) {
+    const lat = parseFloat(loc.latitude);
+    const lng = parseFloat(loc.longtitude ?? loc.longitude); // LTA spells it "longtitude"
+    if (!isFinite(lat) || !isFinite(lng)) continue;
+
+    const operators = new Set();
+    const plugs = new Set();
+    let available = 0, occupied = 0, offline = 0, total = 0;
+    let maxKw = 0;
+    let price = '', priceType = '';
+
+    for (const cp of loc.chargingPoints || []) {
+      if (cp.operator) operators.add(cp.operator);
+      for (const pt of cp.plugTypes || []) {
+        if (pt.plugType) plugs.add(pt.plugType);
+        // Batch file: kW is in `powerRating` (numeric), `current` is AC/DC.
+        // Postal-code endpoint: kW is in `chargingSpeed`, `powerRating` is AC/DC.
+        const kw = parseFloat(pt.powerRating) || parseFloat(pt.chargingSpeed);
+        if (isFinite(kw) && kw > maxKw) maxKw = kw;
+        if (!price && pt.price) { price = pt.price; priceType = pt.priceType || ''; }
+        for (const ev of pt.evIds || []) {
+          total++;
+          if (ev.status === '1') available++;
+          else if (ev.status === '0') occupied++;
+          else offline++;
+        }
+      }
+    }
+    if (total === 0) continue;
+
+    out.push({
+      name: loc.name || loc.address || 'EV Charging',
+      address: loc.address || '',
+      lat, lng,
+      operators: [...operators],
+      plugs: [...plugs],
+      maxKw,
+      available, occupied, offline, total,
+      price, priceType,
+    });
+  }
+  return out;
+}
+
+async function fetchEVStations() {
+  const r1 = await fetch(EVCBATCH_ENDPOINT, {
+    headers: { AccountKey: LTA_API_KEY, Accept: 'application/json' },
+  });
+  if (!r1.ok) throw new Error(`EVCBatch responded ${r1.status} ${r1.statusText}`);
+  const j1 = await r1.json();
+  const link = j1 && j1.value && j1.value[0] && j1.value[0].Link;
+  if (!link) throw new Error('EVCBatch returned no download link');
+
+  const r2 = await fetch(link, { headers: { Accept: 'application/json' } });
+  if (!r2.ok) throw new Error(`EV batch file responded ${r2.status}`);
+  const raw = await r2.json();
+  return summariseEVStations(raw);
+}
+
+app.get('/api/ev', async (req, res) => {
+  const now = Date.now();
+  if (evCache.data && now - evCache.fetchedAt < EV_TTL_MS) {
+    return res.json({
+      data: evCache.data,
+      fetchedAt: new Date(evCache.fetchedAt).toISOString(),
+      stale: false,
+    });
+  }
+  try {
+    const data = await fetchEVStations();
+    evCache = { data, fetchedAt: now };
+    res.json({ data, fetchedAt: new Date(now).toISOString(), stale: false });
+  } catch (err) {
+    console.error('[lta] EV fetch failed:', err.message);
+    if (evCache.data) {
+      return res.json({
+        data: evCache.data,
+        fetchedAt: new Date(evCache.fetchedAt).toISOString(),
+        stale: true,
+        error: err.message,
+      });
+    }
+    res.status(502).json({ error: 'Upstream LTA API unavailable', detail: err.message });
+  }
+});
+
 app.get('/api/geocode', async (req, res) => {
   const q = (req.query.q || '').toString().trim();
   if (!q || q.length < 2) return res.json({ results: [] });
@@ -120,9 +256,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', cacheAge });
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+// index.html must never be cached — it's the app shell and changes on every deploy.
+// (Other static assets could be cached, but this is a single-file SPA.)
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
+}));
 
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

@@ -384,6 +384,129 @@
   .location-pill strong { color: var(--text); font-weight: 600; }
 
   /* ============================================================
+     Segmented control (Parking / Traffic)
+     ============================================================ */
+  .seg-control {
+    position: relative;
+    display: flex;
+    gap: 2px;
+    margin: 14px 0 2px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+  .seg-btn {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 9px;
+    transition: color 0.2s ease;
+    letter-spacing: -0.01em;
+  }
+  .seg-btn svg { width: 15px; height: 15px; stroke-width: 2; }
+  .seg-btn.active { color: var(--text); }
+  .seg-btn .seg-count {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    min-width: 18px;
+  }
+  .seg-btn.active .seg-count { background: var(--accent-soft); color: var(--accent); }
+  .seg-indicator {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    width: 0;
+    height: calc(100% - 8px);
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    transition: left 0.28s cubic-bezier(0.34, 1.4, 0.5, 1),
+                width 0.28s cubic-bezier(0.34, 1.4, 0.5, 1);
+    z-index: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  /* ============================================================
+     Incident cards
+     ============================================================ */
+  .incident-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    text-align: left;
+    width: 100%;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.15s cubic-bezier(0.16,1,0.3,1), border-color 0.15s, box-shadow 0.2s;
+    animation: card-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .incident-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+  }
+  .incident-card:active { transform: translateY(0) scale(0.995); }
+  .incident-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .incident-icon svg { width: 19px; height: 19px; stroke-width: 2; }
+  .incident-icon.red { background: var(--red-soft); color: var(--red); }
+  .incident-icon.amber { background: var(--amber-soft); color: var(--amber); }
+  .incident-icon.accent { background: var(--accent-soft); color: var(--accent); }
+  .incident-icon.grey { background: var(--surface-2); color: var(--text-muted); }
+  .incident-body { flex: 1; min-width: 0; }
+  .incident-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+  .incident-type {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.012em;
+  }
+  .incident-meta {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .incident-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-faint); }
+  .incident-msg {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+    font-weight: 450;
+  }
+
+  /* ============================================================
      Banner
      ============================================================ */
   .banner {
@@ -656,6 +779,33 @@
     </form>
   </header>
 
+  <div class="seg-control" id="segControl" role="tablist" aria-label="View">
+    <span class="seg-indicator" id="segIndicator"></span>
+    <button class="seg-btn active" data-view="parking" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <path d="M9 17V7h4a3 3 0 0 1 0 6H9"></path>
+      </svg>
+      Parking
+    </button>
+    <button class="seg-btn" data-view="traffic" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      Traffic
+      <span class="seg-count" id="trafficCount" style="display:none;">0</span>
+    </button>
+    <button class="seg-btn" data-view="ev" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+      EV
+      <span class="seg-count" id="evCount" style="display:none;">0</span>
+    </button>
+  </div>
+
   <div id="locationPill" class="location-pill" style="display:none;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -681,9 +831,12 @@
   const MIN_RESULTS_BEFORE_EXPAND = 5;
 
   const state = {
+    view: 'parking',          // 'parking' | 'traffic' | 'ev'
     position: null,
     locationLabel: null,
     carparks: [],
+    incidents: [],
+    ev: [],
     fetchedAt: 0,
     stale: false,
     refreshTimer: null,
@@ -712,6 +865,10 @@
     suggestList: $('suggestList'),
     clearBtn: $('clearBtn'),
     toast: $('toast'),
+    segControl: $('segControl'),
+    segIndicator: $('segIndicator'),
+    trafficCount: $('trafficCount'),
+    evCount: $('evCount'),
   };
 
   let suggestController = null;
@@ -974,6 +1131,326 @@
     }
   }
 
+  // ---------- traffic incidents ----------
+  const INCIDENT_ICONS = {
+    alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+    cone: '<path d="M9.5 4 5 20h14L14.5 4z"></path><line x1="3" y1="20" x2="21" y2="20"></line><line x1="8" y1="13" x2="16" y2="13"></line>',
+    car: '<path d="M5 17h14M6.5 17l1-5h9l1 5M8 12l1-4h6l1 4"></path><circle cx="8" cy="17.5" r="1.6"></circle><circle cx="16" cy="17.5" r="1.6"></circle>',
+    arrows: '<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>',
+    info: '<circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
+  };
+
+  function incidentMeta(type) {
+    const t = (type || '').toLowerCase();
+    if (t.includes('accident')) return { icon: 'alert', color: 'red' };
+    if (t.includes('road block') || t.includes('roadblock')) return { icon: 'alert', color: 'red' };
+    if (t.includes('roadwork') || t.includes('road work') || t.includes('plant') || t.includes('equipment')) return { icon: 'cone', color: 'amber' };
+    if (t.includes('breakdown') || t.includes('vehicle')) return { icon: 'car', color: 'amber' };
+    if (t.includes('heavy traffic') || t.includes('obstacle')) return { icon: 'alert', color: 'amber' };
+    if (t.includes('diversion')) return { icon: 'arrows', color: 'accent' };
+    return { icon: 'info', color: 'grey' };
+  }
+
+  // Parse "(18/5)13:53 Accident on ..." -> { time, text }
+  function parseIncidentMsg(msg) {
+    const m = String(msg || '').match(/^\((\d{1,2})\/(\d{1,2})\)\s*(\d{1,2}:\d{2})\s*(.*)$/s);
+    if (!m) return { time: '', text: String(msg || '') };
+    return { time: m[3], date: `${m[1]}/${m[2]}`, text: m[4].trim() };
+  }
+
+  const SEVERITY = { red: 0, amber: 1, accent: 2, grey: 3 };
+
+  function buildIncidentList() {
+    const list = (state.incidents || [])
+      .filter((i) => isFinite(i.Latitude) && isFinite(i.Longitude))
+      .map((i) => {
+        const meta = incidentMeta(i.Type);
+        const parsed = parseIncidentMsg(i.Message);
+        const dist = state.position
+          ? haversine(state.position.lat, state.position.lng, i.Latitude, i.Longitude)
+          : null;
+        return { ...i, meta, parsed, dist };
+      });
+
+    list.sort((a, b) => {
+      if (a.dist != null && b.dist != null) return a.dist - b.dist;
+      const s = SEVERITY[a.meta.color] - SEVERITY[b.meta.color];
+      if (s !== 0) return s;
+      return 0;
+    });
+    return list;
+  }
+
+  function renderIncidents() {
+    const items = buildIncidentList();
+    els.trafficCount.style.display = items.length ? '' : 'none';
+    els.trafficCount.textContent = items.length;
+
+    if (items.length === 0) {
+      els.content.innerHTML = `
+        <div class="state-msg">
+          <div class="title">No active traffic incidents</div>
+          <div class="sub">Roads are clear right now. This refreshes automatically.</div>
+        </div>`;
+      els.footerNote.textContent = '';
+      els.locationPill.style.display = 'none';
+      return;
+    }
+
+    const rows = items.map((it, idx) => {
+      const distStr = it.dist != null ? formatDistance(it.dist) : '';
+      const metaParts = [];
+      if (it.parsed.time) metaParts.push(escapeHtml(it.parsed.time));
+      if (distStr) metaParts.push(escapeHtml(distStr) + ' away');
+      const metaHtml = metaParts
+        .map((p, i) => (i ? '<span class="dot"></span>' : '') + `<span>${p}</span>`)
+        .join('');
+      return `
+        <button class="incident-card" data-lat="${it.Latitude}" data-lng="${it.Longitude}"
+                style="animation-delay:${Math.min(idx * 25, 200)}ms">
+          <span class="incident-icon ${it.meta.color}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${INCIDENT_ICONS[it.meta.icon]}</svg>
+          </span>
+          <span class="incident-body">
+            <span class="incident-top">
+              <span class="incident-type">${escapeHtml(it.Type || 'Incident')}</span>
+            </span>
+            <span class="incident-meta">${metaHtml}</span>
+            <span class="incident-msg">${escapeHtml(it.parsed.text)}</span>
+          </span>
+        </button>`;
+    }).join('');
+
+    els.content.innerHTML = `<div class="list">${rows}</div>`;
+    els.footerNote.textContent = state.position
+      ? `${items.length} incident${items.length === 1 ? '' : 's'} · nearest first`
+      : `${items.length} incident${items.length === 1 ? '' : 's'} island-wide`;
+
+    if (state.position) {
+      const label = state.locationLabel
+        ? `Near <strong>${escapeHtml(state.locationLabel)}</strong>`
+        : 'Near you';
+      els.locationText.innerHTML = label;
+      els.locationPill.style.display = '';
+    } else {
+      els.locationPill.style.display = 'none';
+    }
+  }
+
+  async function loadIncidents({ silent = false } = {}) {
+    if (state.inFlight) return;
+    state.inFlight = true;
+    els.refreshBtn.classList.add('spinning');
+    try {
+      const res = await fetch('/api/incidents');
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const json = await res.json();
+      state.incidents = json.data || [];
+      els.trafficCount.style.display = state.incidents.length ? '' : 'none';
+      els.trafficCount.textContent = state.incidents.length;
+      if (state.view === 'traffic') {
+        state.fetchedAt = json.fetchedAt ? Date.parse(json.fetchedAt) : Date.now();
+        state.stale = !!json.stale;
+        state.lastRefreshAt = Date.now();
+        setBanner(state.stale ? 'Data may be outdated — LTA service is unreachable.' : '');
+        renderIncidents();
+        tickUpdated();
+        if (!silent) showToast('Updated');
+      }
+    } catch (err) {
+      console.error('loadIncidents failed:', err);
+      if (state.view === 'traffic' && state.incidents.length === 0) {
+        els.content.innerHTML = `
+          <div class="state-msg">
+            <div class="title">Couldn't load traffic data</div>
+            <div class="sub">${escapeHtml(err.message)}<br><br>Tap refresh to try again.</div>
+          </div>`;
+      } else if (!silent) {
+        showToast('Refresh failed');
+      }
+    } finally {
+      state.inFlight = false;
+      setTimeout(() => els.refreshBtn.classList.remove('spinning'), 300);
+    }
+  }
+
+  // ---------- EV charging ----------
+  function evColor(available, total) {
+    if (total === 0 || available === 0) return 'grey';
+    const ratio = available / total;
+    if (ratio >= 0.5 || available > 4) return 'green';
+    if (available >= 1) return 'amber';
+    return 'grey';
+  }
+
+  function buildEVList() {
+    if (!state.position) return [];
+    const list = (state.ev || [])
+      .filter((s) => isFinite(s.lat) && isFinite(s.lng))
+      .map((s) => ({
+        ...s,
+        dist: haversine(state.position.lat, state.position.lng, s.lat, s.lng),
+      }));
+    list.sort((a, b) => {
+      const aOk = a.available > 0 ? 0 : 1;
+      const bOk = b.available > 0 ? 0 : 1;
+      if (aOk !== bOk) return aOk - bOk;
+      return a.dist - b.dist;
+    });
+    return list.slice(0, MAX_RESULTS);
+  }
+
+  function renderEV() {
+    if (!state.position) {
+      els.content.innerHTML = `
+        <div class="state-msg">
+          <div class="title">Find EV charging near you</div>
+          <div class="sub">Use your location or search for a destination above.</div>
+        </div>`;
+      els.locationPill.style.display = 'none';
+      els.footerNote.textContent = '';
+      return;
+    }
+    const items = buildEVList();
+    if (items.length === 0) {
+      els.content.innerHTML = `
+        <div class="state-msg">
+          <div class="title">No EV chargers nearby</div>
+          <div class="sub">Try searching a different area.</div>
+        </div>`;
+      els.footerNote.textContent = '';
+      return;
+    }
+
+    const rows = items.map((s, idx) => {
+      const color = evColor(s.available, s.total);
+      const op = s.operators[0]
+        ? escapeHtml(titleCase(s.operators[0].replace(/\b(PTE\.?|LTD\.?|LIMITED|SERVICES|SINGAPORE)\b/gi, '').replace(/\s+/g, ' ').trim()) || s.operators[0])
+        : 'EV Charging';
+      const specs = [];
+      if (s.plugs.length) specs.push(escapeHtml(s.plugs.join(' · ')));
+      if (s.maxKw) specs.push(`${s.maxKw} kW`);
+      if (s.price) specs.push(`$${s.price}/${escapeHtml(s.priceType || 'kWh')}`);
+      return `
+        <button class="card" data-lat="${s.lat}" data-lng="${s.lng}"
+                style="animation-delay:${Math.min(idx * 25, 200)}ms">
+          <div class="card-info">
+            <div class="card-name">${escapeHtml(titleCase(s.name))}</div>
+            <div class="card-meta">
+              <span>${formatDistance(s.dist)}</span>
+              <span class="meta-dot"></span>
+              <span class="agency-badge">${op}</span>
+            </div>
+            <div class="card-meta" style="margin-top:4px;">${specs.join(' &nbsp;·&nbsp; ')}</div>
+          </div>
+          <div class="card-lots">
+            <div class="status-dot ${color}"></div>
+            <div class="lots-pill">
+              <span class="lots-num ${color}">${s.available}</span>
+              <span style="font-size:15px;font-weight:600;color:var(--text-faint);">/${s.total}</span>
+            </div>
+            <div class="lots-label">free</div>
+          </div>
+        </button>`;
+    }).join('');
+
+    els.content.innerHTML = `<div class="list">${rows}</div>`;
+    els.footerNote.textContent = `${items.length} nearest of ${state.ev.length} stations island-wide`;
+
+    const label = state.locationLabel
+      ? `Near <strong>${escapeHtml(state.locationLabel)}</strong>`
+      : 'Near you';
+    els.locationText.innerHTML = label;
+    els.locationPill.style.display = '';
+  }
+
+  async function loadEV({ silent = false } = {}) {
+    if (state.inFlight) return;
+    state.inFlight = true;
+    els.refreshBtn.classList.add('spinning');
+    try {
+      const res = await fetch('/api/ev');
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const json = await res.json();
+      state.ev = json.data || [];
+      els.evCount.style.display = state.ev.length ? '' : 'none';
+      els.evCount.textContent = state.ev.length;
+      if (state.view === 'ev') {
+        state.fetchedAt = json.fetchedAt ? Date.parse(json.fetchedAt) : Date.now();
+        state.stale = !!json.stale;
+        state.lastRefreshAt = Date.now();
+        setBanner(state.stale ? 'Data may be outdated — LTA service is unreachable.' : '');
+        renderEV();
+        tickUpdated();
+        if (!silent) showToast('Updated');
+      }
+    } catch (err) {
+      console.error('loadEV failed:', err);
+      if (state.view === 'ev' && state.ev.length === 0) {
+        els.content.innerHTML = `
+          <div class="state-msg">
+            <div class="title">Couldn't load EV data</div>
+            <div class="sub">${escapeHtml(err.message)}<br><br>Tap refresh to try again.</div>
+          </div>`;
+      } else if (!silent) {
+        showToast('Refresh failed');
+      }
+    } finally {
+      state.inFlight = false;
+      setTimeout(() => els.refreshBtn.classList.remove('spinning'), 300);
+    }
+  }
+
+  // ---------- active-view dispatch ----------
+  function refreshActive({ silent = true } = {}) {
+    if (state.view === 'traffic') return loadIncidents({ silent });
+    if (state.view === 'ev') return loadEV({ silent });
+    if (!state.position) return Promise.resolve();
+    return loadCarparks({ silent });
+  }
+
+  function moveIndicator() {
+    const active = els.segControl.querySelector('.seg-btn.active');
+    if (!active) return;
+    els.segIndicator.style.left = active.offsetLeft + 'px';
+    els.segIndicator.style.width = active.offsetWidth + 'px';
+  }
+
+  function switchView(view) {
+    if (view === state.view) return;
+    state.view = view;
+    els.segControl.querySelectorAll('.seg-btn').forEach((b) => {
+      const on = b.dataset.view === view;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    moveIndicator();
+    state.cardEls.clear();
+    els.content.innerHTML = '';
+    setBanner('');
+
+    if (view === 'parking') {
+      if (!state.position) {
+        showFallbackPrompt('Use your location or search for an area to see carparks.');
+        els.locationPill.style.display = 'none';
+        return;
+      }
+      if (state.carparks.length) { render(); tickUpdated(); }
+      else showLoading('Finding carparks…');
+      refreshActive({ silent: true });
+    } else if (view === 'traffic') {
+      if (state.incidents.length) { renderIncidents(); tickUpdated(); }
+      else showLoading('Loading traffic incidents…');
+      refreshActive({ silent: true });
+      startAutoRefresh();
+    } else {
+      if (state.ev.length) { renderEV(); tickUpdated(); }
+      else showLoading('Loading EV charging stations…');
+      refreshActive({ silent: true });
+      startAutoRefresh();
+    }
+  }
+
   async function geocode(query, signal) {
     const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, { signal });
     if (!res.ok) {
@@ -1050,8 +1527,9 @@
     state.locationLabel = result.label;
     els.locationBtn.classList.remove('active-loc');
     state.cardEls.clear();
-    showLoading(`Loading carparks near ${escapeHtml(result.label)}…`);
-    await loadCarparks({ silent: true });
+    const what = state.view === 'traffic' ? 'incidents' : 'carparks';
+    showLoading(`Loading ${what} near ${escapeHtml(result.label)}…`);
+    await refreshActive({ silent: true });
     startAutoRefresh();
   }
 
@@ -1122,8 +1600,8 @@
         els.searchInput.value = '';
         els.clearBtn.classList.remove('show');
         state.cardEls.clear();
-        showLoading('Finding carparks near you…');
-        await loadCarparks({ silent: true });
+        showLoading(state.view === 'traffic' ? 'Finding incidents near you…' : 'Finding carparks near you…');
+        await refreshActive({ silent: true });
         startAutoRefresh();
       },
       (err) => {
@@ -1136,7 +1614,7 @@
   function startAutoRefresh() {
     if (state.refreshTimer) clearInterval(state.refreshTimer);
     if (state.countdownTimer) clearInterval(state.countdownTimer);
-    state.refreshTimer = setInterval(() => loadCarparks({ silent: true }), REFRESH_MS);
+    state.refreshTimer = setInterval(() => refreshActive({ silent: true }), REFRESH_MS);
     state.countdownTimer = setInterval(tickUpdated, 1000);
     tickUpdated();
   }
@@ -1161,8 +1639,10 @@
         clearTimeout(timeout);
         state.position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         els.locationBtn.classList.add('active-loc');
-        await loadCarparks({ silent: true });
+        await refreshActive({ silent: true });
         startAutoRefresh();
+        loadIncidents({ silent: true }); // prefetch to populate Traffic badge
+        loadEV({ silent: true });        // prefetch to populate EV badge
       },
       (err) => {
         if (resolved) return;
@@ -1192,9 +1672,13 @@
 
   // ---------- wire up ----------
   els.refreshBtn.addEventListener('click', () => {
-    if (!state.position) return;
+    if (state.view === 'parking' && !state.position) return;
     state.lastRefreshAt = Date.now();
-    loadCarparks();
+    refreshActive({ silent: false });
+  });
+  els.segControl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (btn) switchView(btn.dataset.view);
   });
   els.locationBtn.addEventListener('click', reCenterOnUser);
   els.themeToggle.addEventListener('click', toggleTheme);
@@ -1227,6 +1711,17 @@
     if (result) pickSuggestion(result);
   });
   els.clearBtn.addEventListener('click', clearSearch);
+  els.content.addEventListener('click', (e) => {
+    const incident = e.target.closest('.incident-card');
+    if (incident) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${incident.dataset.lat},${incident.dataset.lng}`, '_blank', 'noopener');
+      return;
+    }
+    const evCard = e.target.closest('.card[data-lat]');
+    if (evCard) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${evCard.dataset.lat},${evCard.dataset.lng}&travelmode=driving`, '_blank', 'noopener');
+    }
+  });
   document.addEventListener('click', (e) => {
     if (!els.searchBar.contains(e.target)) closeSuggestions();
   });
@@ -1247,6 +1742,11 @@
       }
     });
   } catch {}
+
+  // Position the segmented indicator under the active tab (and keep it correct on resize)
+  moveIndicator();
+  window.addEventListener('resize', moveIndicator, { passive: true });
+  window.addEventListener('load', moveIndicator);
 
   const isLikelyMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   if (!isLikelyMobile && !window.isSecureContext) {
