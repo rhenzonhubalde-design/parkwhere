@@ -677,6 +677,121 @@
   .card-bar-fill.grey  { background: var(--grey); }
 
   /* ============================================================
+     Trip tab — form
+     ============================================================ */
+  .trip-form {
+    margin: 12px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 18px 14px;
+    box-shadow: var(--shadow-card);
+  }
+  .trip-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 34px;
+    position: relative;
+  }
+  .trip-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .trip-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .trip-dot.red   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  .trip-origin-label {
+    font-size: 14px; color: var(--text-muted); font-weight: 500;
+  }
+  .trip-line {
+    width: 2px; height: 16px; background: var(--border);
+    margin: 3px 0 3px 4px; border-radius: 2px;
+  }
+  .trip-dest-input {
+    flex: 1; background: transparent; border: none;
+    color: var(--text); font-family: inherit; font-size: 14px;
+    font-weight: 500; padding: 0; outline: none; letter-spacing: -0.01em;
+  }
+  .trip-dest-input::placeholder { color: var(--text-faint); }
+  .trip-actions {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 14px;
+    padding-top: 14px; border-top: 1px solid var(--border);
+  }
+  .vehicle-tabs { display: flex; gap: 5px; }
+  .vehicle-btn {
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px;
+    font-weight: 600; color: var(--text-muted); background: var(--surface-2);
+    transition: background 0.15s, color 0.15s;
+    border: 1px solid transparent;
+  }
+  .vehicle-btn.active {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .vehicle-btn:hover:not(.active) { background: var(--surface-3); color: var(--text); }
+  .get-dir-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; background: var(--accent-strong); color: white;
+    border-radius: 10px; font-size: 13.5px; font-weight: 600;
+    transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  }
+  .get-dir-btn svg { width: 14px; height: 14px; stroke-width: 2.5; }
+  .get-dir-btn:hover:not(:disabled) { background: var(--accent); }
+  .get-dir-btn:active:not(:disabled) { transform: scale(0.97); }
+  .get-dir-btn:disabled { opacity: 0.38; cursor: default; }
+
+  /* ============================================================
+     Trip tab — route cards
+     ============================================================ */
+  .route-card {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px 18px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow-card); text-align: left; width: 100%;
+    transition: border-color 0.15s, box-shadow 0.2s;
+    animation: card-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .route-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card-hover); }
+  .route-header {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .route-badge {
+    font-size: 10.5px; font-weight: 700; padding: 3px 8px;
+    border-radius: 6px; text-transform: uppercase; letter-spacing: 0.07em;
+    flex-shrink: 0;
+  }
+  .route-badge.fastest { background: var(--green-soft); color: var(--green); }
+  .route-badge.alt     { background: var(--surface-2);  color: var(--text-muted); }
+  .route-summary {
+    flex: 1; font-size: 14.5px; font-weight: 600; color: var(--text);
+    letter-spacing: -0.012em; overflow: hidden;
+    white-space: nowrap; text-overflow: ellipsis;
+  }
+  .nav-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 12px; background: var(--accent-soft); color: var(--accent);
+    border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    text-decoration: none; transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .nav-btn svg { width: 12px; height: 12px; stroke-width: 2.5; }
+  .nav-btn:hover { background: var(--accent); color: white; }
+  .route-stats { display: flex; align-items: baseline; gap: 12px; }
+  .route-time {
+    font-size: 28px; font-weight: 700; color: var(--text);
+    letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
+  }
+  .route-dist { font-size: 13.5px; color: var(--text-muted); font-weight: 500; }
+  .route-erp {
+    display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+    color: var(--amber); font-weight: 500; padding: 9px 11px;
+    background: var(--amber-soft);
+    border: 1px solid color-mix(in srgb, var(--amber) 20%, transparent);
+    border-radius: 9px;
+  }
+  .route-erp svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  /* ============================================================
      States
      ============================================================ */
   .state-msg {
@@ -826,6 +941,12 @@
       EV
       <span class="seg-count" id="evCount" style="display:none;">0</span>
     </button>
+    <button class="seg-btn" data-view="trip" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+      </svg>
+      Trip
+    </button>
   </div>
 
   <div id="locationPill" class="location-pill" style="display:none;">
@@ -861,6 +982,10 @@
     incidents: [],
     ev: [],
     privateParks: [],
+    tripDest: null,
+    tripVehicle: 'car',
+    routes: [],
+    tripInFlight: false,
     fetchedAt: 0,
     stale: false,
     refreshTimer: null,
@@ -898,6 +1023,12 @@
   let suggestController = null;
   let suggestTimer = null;
   let activeSuggestIdx = -1;
+
+  // Trip-specific module-level vars
+  let tripSuggestions = [];
+  let tripSugIdx = -1;
+  let tripSugTimer = null;
+  let tripSugCtrl = null;
 
   // ---------- helpers ----------
   function haversine(lat1, lng1, lat2, lng2) {
@@ -1504,8 +1635,193 @@
   function refreshActive({ silent = true } = {}) {
     if (state.view === 'traffic') return loadIncidents({ silent });
     if (state.view === 'ev') return loadEV({ silent });
+    if (state.view === 'trip') return Promise.resolve(); // trip is user-initiated only
     if (!state.position) return Promise.resolve();
     return loadCarparks({ silent });
+  }
+
+  // ---------- Trip tab ----------
+  function handleTripDestInput(q) {
+    tripSugIdx = -1;
+    if (tripSugTimer) clearTimeout(tripSugTimer);
+    const listEl = document.getElementById('tripSuggestList');
+    if (!listEl) return;
+    if (q.length < 2) { listEl.classList.remove('open'); listEl.innerHTML = ''; return; }
+    tripSugTimer = setTimeout(async () => {
+      if (tripSugCtrl) tripSugCtrl.abort();
+      tripSugCtrl = new AbortController();
+      try {
+        const json = await geocode(q, tripSugCtrl.signal);
+        tripSuggestions = json.results || [];
+        const el = document.getElementById('tripSuggestList');
+        if (!el) return;
+        if (!tripSuggestions.length) {
+          el.innerHTML = `<li class="suggest-item empty">No matches for "${escapeHtml(q)}"</li>`;
+          el.classList.add('open');
+          return;
+        }
+        el.innerHTML = tripSuggestions.map((r, i) => `
+          <li class="suggest-item" data-tidx="${i}" role="option">
+            ${escapeHtml(r.label)}
+            ${r.address && r.address !== r.label ? `<span class="sub">${escapeHtml(r.address)}</span>` : ''}
+          </li>`).join('');
+        el.classList.add('open');
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('[trip suggest]', err.message);
+      }
+    }, 220);
+  }
+
+  function pickTripDest(result) {
+    state.tripDest = { lat: result.lat, lng: result.lng, label: result.label };
+    const destInput = document.getElementById('tripDestInput');
+    if (destInput) destInput.value = result.label;
+    const listEl = document.getElementById('tripSuggestList');
+    if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
+    const btn = document.getElementById('getDirectionsBtn');
+    if (btn) btn.disabled = false;
+    tripSuggestions = [];
+    tripSugIdx = -1;
+  }
+
+  function renderTripRoutes() {
+    const container = document.getElementById('tripRoutes');
+    if (!container) return;
+    if (!state.routes.length) { container.innerHTML = ''; return; }
+
+    const NAV_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>`;
+    const ERP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+
+    container.innerHTML = '<div class="list">' + state.routes.map((route, idx) => {
+      const badgeClass = idx === 0 ? 'fastest' : 'alt';
+      const summary = route.summary ? `via ${escapeHtml(route.summary)}` : 'Direct route';
+      const erpHtml = route.erpLikely
+        ? `<div class="route-erp">${ERP_ICON}ERP may apply${route.expressways.length ? ` &nbsp;·&nbsp; ${escapeHtml(route.expressways.join(', '))}` : ''}</div>`
+        : '';
+      return `
+        <div class="route-card" style="animation-delay:${idx * 60}ms">
+          <div class="route-header">
+            <span class="route-badge ${badgeClass}">${escapeHtml(route.label)}</span>
+            <span class="route-summary">${summary}</span>
+            <a class="nav-btn" href="${escapeHtml(route.mapsUrl)}" target="_blank" rel="noopener">
+              Navigate ${NAV_ICON}
+            </a>
+          </div>
+          <div class="route-stats">
+            <span class="route-time">${escapeHtml(route.duration)}</span>
+            <span class="route-dist">${escapeHtml(route.distance)}</span>
+          </div>
+          ${erpHtml}
+        </div>`;
+    }).join('') + '</div>';
+  }
+
+  function renderTrip() {
+    els.locationPill.style.display = 'none';
+    setBanner('');
+
+    // Keep form alive across route fetches — only rebuild if it's gone
+    if (document.getElementById('tripForm')) {
+      renderTripRoutes();
+      return;
+    }
+
+    const origin = state.position;
+    const originLabel = origin ? 'Current location' : 'Enable location or search above';
+
+    els.content.innerHTML = `
+      <div class="trip-form" id="tripForm">
+        <div class="trip-row">
+          <span class="trip-dot green"></span>
+          <span class="trip-origin-label">${escapeHtml(originLabel)}</span>
+        </div>
+        <div class="trip-line"></div>
+        <div class="trip-row">
+          <span class="trip-dot red"></span>
+          <input id="tripDestInput" class="trip-dest-input"
+                 placeholder="Where are you going?"
+                 value="${state.tripDest ? escapeHtml(state.tripDest.label) : ''}"
+                 autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" />
+          <ul id="tripSuggestList" class="suggest-list"
+              style="top:calc(100% + 4px);left:22px;right:0;"></ul>
+        </div>
+        <div class="trip-actions">
+          <div class="vehicle-tabs">
+            <button class="vehicle-btn ${state.tripVehicle === 'car' ? 'active' : ''}" data-v="car">Car</button>
+            <button class="vehicle-btn ${state.tripVehicle === 'motorcycle' ? 'active' : ''}" data-v="motorcycle">Motorcycle</button>
+          </div>
+          <button id="getDirectionsBtn" class="get-dir-btn" ${!state.tripDest ? 'disabled' : ''}>
+            Directions
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+      <div id="tripRoutes"></div>`;
+
+    // Wire dest-input keydown (element-specific, safe to add once per render)
+    const destInput = document.getElementById('tripDestInput');
+    if (destInput) {
+      destInput.addEventListener('keydown', (e) => {
+        const listEl = document.getElementById('tripSuggestList');
+        const items = listEl ? listEl.querySelectorAll('.suggest-item:not(.empty)') : [];
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          tripSugIdx = Math.min(tripSugIdx + 1, items.length - 1);
+          items.forEach((el, i) => el.classList.toggle('active', i === tripSugIdx));
+          if (items[tripSugIdx]) items[tripSugIdx].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          tripSugIdx = Math.max(tripSugIdx - 1, 0);
+          items.forEach((el, i) => el.classList.toggle('active', i === tripSugIdx));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const pick = tripSuggestions[tripSugIdx >= 0 ? tripSugIdx : 0];
+          if (pick) { pickTripDest(pick); return; }
+          if (state.tripDest && !state.tripInFlight) loadDirections();
+        } else if (e.key === 'Escape') {
+          if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
+        }
+      });
+      if (!state.tripDest) setTimeout(() => destInput.focus(), 50);
+    }
+
+    renderTripRoutes();
+  }
+
+  async function loadDirections() {
+    const origin = state.position;
+    const dest = state.tripDest;
+    if (!origin || !dest || state.tripInFlight) return;
+
+    state.tripInFlight = true;
+    const routesDiv = document.getElementById('tripRoutes');
+    if (routesDiv) {
+      routesDiv.innerHTML = `
+        <div class="state-msg" style="padding:48px 0">
+          <div class="spinner"></div>
+          <div class="title">Getting directions…</div>
+        </div>`;
+    }
+
+    try {
+      const url = `/api/directions?olat=${origin.lat}&olng=${origin.lng}&dlat=${dest.lat}&dlng=${dest.lng}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const json = await res.json();
+      if (json.warning) showToast(json.warning, 3000);
+      state.routes = json.routes || [];
+      renderTripRoutes();
+    } catch (err) {
+      console.error('[directions]', err);
+      const rd = document.getElementById('tripRoutes');
+      if (rd) rd.innerHTML = `
+        <div class="state-msg" style="padding:40px 0">
+          <div class="title">Couldn't get directions</div>
+          <div class="sub">${escapeHtml(err.message)}</div>
+        </div>`;
+    } finally {
+      state.tripInFlight = false;
+    }
   }
 
   function moveIndicator() {
@@ -1542,11 +1858,18 @@
       else showLoading('Loading traffic incidents…');
       refreshActive({ silent: true });
       startAutoRefresh();
-    } else {
+    } else if (view === 'ev') {
       if (state.ev.length) { renderEV(); tickUpdated(); }
       else showLoading('Loading EV charging stations…');
       refreshActive({ silent: true });
       startAutoRefresh();
+    } else {
+      // trip
+      renderTrip();
+      // No auto-refresh; clear countdown bar
+      if (state.countdownTimer) clearInterval(state.countdownTimer);
+      els.countdownFill.style.transform = 'scaleX(0)';
+      els.updatedLine.innerHTML = '&nbsp;';
     }
   }
 
@@ -1825,10 +2148,50 @@
     const evCard = e.target.closest('.card[data-lat]');
     if (evCard) {
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${evCard.dataset.lat},${evCard.dataset.lng}&travelmode=driving`, '_blank', 'noopener');
+      return;
     }
+    // Trip: vehicle type button
+    const vBtn = e.target.closest('.vehicle-btn[data-v]');
+    if (vBtn) {
+      state.tripVehicle = vBtn.dataset.v;
+      document.querySelectorAll('.vehicle-btn').forEach((b) => b.classList.toggle('active', b.dataset.v === state.tripVehicle));
+      return;
+    }
+    // Trip: get directions button
+    if (e.target.closest('#getDirectionsBtn')) {
+      if (state.tripDest && !state.tripInFlight) loadDirections();
+      return;
+    }
+    // Trip: destination autocomplete item
+    const tripItem = e.target.closest('.suggest-item[data-tidx]');
+    if (tripItem) {
+      const idx = parseInt(tripItem.dataset.tidx, 10);
+      if (tripSuggestions[idx]) pickTripDest(tripSuggestions[idx]);
+      return;
+    }
+  });
+
+  // Trip dest input: delegation via content (input events bubble)
+  els.content.addEventListener('input', (e) => {
+    if (e.target.id !== 'tripDestInput') return;
+    const q = e.target.value.trim();
+    // If user edits after picking a suggestion, clear the locked dest
+    if (state.tripDest && state.tripDest.label !== q) {
+      state.tripDest = null;
+      const btn = document.getElementById('getDirectionsBtn');
+      if (btn) btn.disabled = true;
+    }
+    handleTripDestInput(q);
   });
   document.addEventListener('click', (e) => {
     if (!els.searchBar.contains(e.target)) closeSuggestions();
+    // Also close trip destination suggest when clicking outside it
+    const tripList  = document.getElementById('tripSuggestList');
+    const tripInput = document.getElementById('tripDestInput');
+    if (tripList && tripInput &&
+        !tripList.contains(e.target) && !tripInput.contains(e.target)) {
+      tripList.classList.remove('open');
+    }
   });
 
   // Header shadow on scroll

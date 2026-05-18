@@ -398,6 +398,94 @@ app.get('/api/ev', async (req, res) => {
   }
 });
 
+// ---------- Google Directions proxy ----------
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const GDIRECTIONS = 'https://maps.googleapis.com/maps/api/directions/json';
+
+// Known ERP expressway codes present in Singapore
+const ERP_CODES = ['AYE', 'BKE', 'CTE', 'ECP', 'KPE', 'MCE', 'PIE', 'SLE', 'TPE'];
+
+function extractExpressways(routeSummary, steps) {
+  const found = new Set();
+  // Check route summary (e.g. "AYE" or "PIE and AYE")
+  const upper = (routeSummary || '').toUpperCase();
+  for (const code of ERP_CODES) {
+    if (upper.includes(code)) found.add(code);
+  }
+  // Also scan step html_instructions for expressway names
+  for (const step of steps || []) {
+    const text = (step.html_instructions || '').replace(/<[^>]+>/g, ' ').toUpperCase();
+    for (const code of ERP_CODES) {
+      if (text.includes(code)) found.add(code);
+    }
+    // Catch full expressway names in instructions
+    if (text.includes('AYER RAJAH'))    found.add('AYE');
+    if (text.includes('BUKIT TIMAH'))   found.add('BKE');
+    if (text.includes('CENTRAL EXP'))   found.add('CTE');
+    if (text.includes('EAST COAST'))    found.add('ECP');
+    if (text.includes('KALLANG'))       found.add('KPE');
+    if (text.includes('MARINA COASTAL')) found.add('MCE');
+    if (text.includes('PAN ISLAND'))    found.add('PIE');
+    if (text.includes('SELETAR'))       found.add('SLE');
+    if (text.includes('TAMPINES EXP'))  found.add('TPE');
+  }
+  return [...found];
+}
+
+app.get('/api/directions', async (req, res) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(503).json({ error: 'Directions service not configured on this server.' });
+  }
+  const { olat, olng, dlat, dlng } = req.query;
+  if (!olat || !olng || !dlat || !dlng) {
+    return res.status(400).json({ error: 'Missing coordinates: need olat, olng, dlat, dlng' });
+  }
+
+  try {
+    const url =
+      `${GDIRECTIONS}?origin=${encodeURIComponent(`${olat},${olng}`)}` +
+      `&destination=${encodeURIComponent(`${dlat},${dlng}`)}` +
+      `&mode=driving&alternatives=true&region=sg&language=en` +
+      `&key=${GOOGLE_MAPS_API_KEY}`;
+
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error(`Google Directions responded ${r.status} ${r.statusText}`);
+    const j = await r.json();
+
+    if (j.status === 'ZERO_RESULTS') {
+      return res.json({ routes: [], warning: 'No route found between these points.' });
+    }
+    if (j.status !== 'OK') {
+      throw new Error(`Directions API: ${j.status} — ${j.error_message || ''}`);
+    }
+
+    const mapsBase =
+      `https://www.google.com/maps/dir/?api=1` +
+      `&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=driving`;
+
+    const routes = (j.routes || []).slice(0, 2).map((route, idx) => {
+      const leg   = route.legs && route.legs[0];
+      const steps = (leg && leg.steps) || [];
+      const expressways = extractExpressways(route.summary, steps);
+      return {
+        label:          idx === 0 ? 'Fastest' : 'Alternative',
+        summary:        route.summary || '',
+        distance:       leg ? leg.distance.text : '—',
+        duration:       leg ? leg.duration.text : '—',
+        durationValue:  leg ? leg.duration.value : 0,
+        expressways,
+        erpLikely:      expressways.length > 0,
+        mapsUrl:        mapsBase,
+      };
+    });
+
+    res.json({ routes });
+  } catch (err) {
+    console.error('[directions] failed:', err.message);
+    res.status(502).json({ error: 'Could not fetch directions', detail: err.message });
+  }
+});
+
 app.get('/api/geocode', async (req, res) => {
   const q = (req.query.q || '').toString().trim();
   if (!q || q.length < 2) return res.json({ results: [] });
