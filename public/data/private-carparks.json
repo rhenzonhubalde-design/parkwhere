@@ -1,0 +1,98 @@
+[
+  {
+    "id": "PVT_JEWEL",
+    "name": "Jewel Changi Airport",
+    "address": "78 Airport Blvd, Singapore 819666",
+    "lat": 1.3601,
+    "lng": 103.9888,
+    "parkingUrl": "https://www.jewelchangiairport.com/en/getting-here/carpark.html"
+  },
+  {
+    "id": "PVT_ION",
+    "name": "ION Orchard",
+    "address": "2 Orchard Turn, Singapore 238801",
+    "lat": 1.3048,
+    "lng": 103.8318,
+    "parkingUrl": "https://www.ionorchard.com/en/ION-Orchard/getting-here/parking.html"
+  },
+  {
+    "id": "PVT_NGEE_ANN",
+    "name": "Ngee Ann City (Takashimaya)",
+    "address": "391 Orchard Road, Singapore 238872",
+    "lat": 1.3043,
+    "lng": 103.8315,
+    "parkingUrl": "https://www.ngeeanncity.com.sg/facilities-and-services/carpark"
+  },
+  {
+    "id": "PVT_VIVO",
+    "name": "VivoCity",
+    "address": "1 HarbourFront Walk, Singapore 098585",
+    "lat": 1.2644,
+    "lng": 103.8221,
+    "parkingUrl": "https://www.vivocity.com.sg/getting-here"
+  },
+  {
+    "id": "PVT_SUNTEC",
+    "name": "Suntec City",
+    "address": "3 Temasek Blvd, Singapore 038983",
+    "lat": 1.2931,
+    "lng": 103.8571,
+    "parkingUrl": "https://www.sunteccity.com.sg/visitor-info/carpark"
+  },
+  {
+    "id": "PVT_MARINA_SQ",
+    "name": "Marina Square",
+    "address": "6 Raffles Blvd, Singapore 039594",
+    "lat": 1.2912,
+    "lng": 103.8573,
+    "parkingUrl": "https://www.marinasquare.com.sg/get-here"
+  },
+  {
+    "id": "PVT_BUGIS_PLUS",
+    "name": "Bugis+",
+    "address": "201 Victoria St, Singapore 188067",
+    "lat": 1.2996,
+    "lng": 103.8551,
+    "parkingUrl": "https://www.bugisplus.com.sg/getting-here/parking"
+  },
+  {
+    "id": "PVT_NEX",
+    "name": "NEX",
+    "address": "23 Serangoon Central, Singapore 556083",
+    "lat": 1.3507,
+    "lng": 103.8727,
+    "parkingUrl": "https://www.nex.com.sg/getting-here/car-park"
+  },
+  {
+    "id": "PVT_TAMPINES1",
+    "name": "Tampines 1",
+    "address": "10 Tampines Central 1, Singapore 529536",
+    "lat": 1.3527,
+    "lng": 103.9451,
+    "parkingUrl": "https://www.tampines1.com.sg/getting-here"
+  },
+  {
+    "id": "PVT_JURONG_PT",
+    "name": "Jurong Point",
+    "address": "1 Jurong West Central 2, Singapore 648886",
+    "lat": 1.3398,
+    "lng": 103.7064,
+    "parkingUrl": "https://www.jp1.com.sg/carparks"
+  },
+  {
+    "id": "PVT_NORTHPOINT",
+    "name": "Northpoint City",
+    "address": "930 Yishun Ave 2, Singapore 769098",
+    "lat": 1.4290,
+    "lng": 103.8358,
+    "parkingUrl": "https://www.northpointcity.com.sg/getting-here/carpark"
+  },
+  {
+    "id": "PVT_CAUSEWAY_PT",
+    "name": "Causeway Point",
+    "address": "1 Woodlands Square, Singapore 738099",
+    "lat": 1.4343,
+    "lng": 103.7862,
+    "parkingUrl": "https://www.causewaypoint.com.sg/getting-here/carpark"
+  }
+]

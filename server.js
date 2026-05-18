@@ -5,7 +5,10 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const LTA_API_KEY = process.env.LTA_API_KEY;
+const URA_ACCESS_KEY = process.env.URA_ACCESS_KEY;
 const LTA_ENDPOINT = 'https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2';
+const URA_TOKEN_URL = 'https://www.ura.gov.sg/uraDataService/insertNewToken.action';
+const URA_DS_URL = 'https://www.ura.gov.sg/uraDataService/invokeUraDS';
 const ONEMAP_SEARCH = 'https://www.onemap.gov.sg/api/common/elastic/search';
 
 const CACHE_TTL_MS = 55 * 1000;
@@ -14,8 +17,163 @@ let cache = { data: null, fetchedAt: 0, stale: false };
 if (!LTA_API_KEY) {
   console.warn('[warn] LTA_API_KEY is not set — /api/carparks will return errors until it is configured.');
 }
+if (!URA_ACCESS_KEY) {
+  console.warn('[warn] URA_ACCESS_KEY is not set — URA carparks (malls, private lots) will be skipped.');
+}
 
-async function fetchAllCarparks() {
+// ---------- URA token management (token valid 24 h; refresh every 23 h) ----------
+let uraToken = { token: null, fetchedAt: 0 };
+const URA_TOKEN_TTL_MS = 23 * 60 * 60 * 1000;
+
+async function getURAToken() {
+  const now = Date.now();
+  if (uraToken.token && now - uraToken.fetchedAt < URA_TOKEN_TTL_MS) {
+    return uraToken.token;
+  }
+  const r = await fetch(`${URA_TOKEN_URL}?accesskey=${encodeURIComponent(URA_ACCESS_KEY)}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!r.ok) throw new Error(`URA token API: ${r.status} ${r.statusText}`);
+  const j = await r.json();
+  if (j.Status !== 'Success' || !j.Result) {
+    throw new Error(`URA token failed: ${j.Message || JSON.stringify(j)}`);
+  }
+  uraToken = { token: j.Result, fetchedAt: now };
+  console.log('[ura] refreshed token');
+  return j.Result;
+}
+
+// ---------- SVY21 → WGS84 (inverse Transverse Mercator, Redfearn's formulae) ----------
+// Parameters from SVY21 projection (EPSG:3414)
+function svy21ToWgs84(northing, easting) {
+  const a   = 6378137.0;           // WGS84 semi-major axis (m)
+  const f   = 1 / 298.257223563;   // WGS84 flattening
+  const k0  = 1.0;                 // scale factor
+  const E0  = 28001.642;           // false easting (m)
+  const N0  = 38744.572;           // false northing (m)
+  const φ0  = 1.366666666666667 * (Math.PI / 180); // latitude of origin (rad)
+  const λ0  = 103.8333333333333 * (Math.PI / 180); // central meridian (rad)
+
+  const e2  = 2 * f - f * f;       // first eccentricity squared
+  const ep2 = e2 / (1 - e2);       // second eccentricity squared
+  const b   = a * Math.sqrt(1 - e2);
+
+  const e4 = e2 * e2, e6 = e4 * e2;
+
+  function meridArc(φ) {
+    return a * (
+      (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * φ
+      - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * φ)
+      + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * φ)
+      - (35 * e6 / 3072) * Math.sin(6 * φ)
+    );
+  }
+
+  const M0 = meridArc(φ0);
+  const M  = M0 + (northing - N0) / k0;
+  const μ  = M / (a * (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256));
+
+  const e1   = (1 - b / a) / (1 + b / a);
+  const e1_2 = e1 * e1, e1_3 = e1_2 * e1, e1_4 = e1_3 * e1;
+  const φ1   = μ
+    + (3 * e1 / 2       - 27 * e1_3 / 32)   * Math.sin(2 * μ)
+    + (21 * e1_2 / 16   - 55 * e1_4 / 32)   * Math.sin(4 * μ)
+    + (151 * e1_3 / 96)                       * Math.sin(6 * μ)
+    + (1097 * e1_4 / 512)                     * Math.sin(8 * μ);
+
+  const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1), tanφ1 = Math.tan(φ1);
+  const N1    = a / Math.sqrt(1 - e2 * sinφ1 * sinφ1);
+  const R1    = a * (1 - e2) / Math.pow(1 - e2 * sinφ1 * sinφ1, 1.5);
+  const T1    = tanφ1 * tanφ1;
+  const C1    = ep2 * cosφ1 * cosφ1;
+  const D     = (easting - E0) / (N1 * k0);
+  const D2 = D * D, D3 = D2 * D, D4 = D3 * D, D5 = D4 * D, D6 = D5 * D;
+
+  const φ = φ1 - (N1 * tanφ1 / R1) * (
+      D2 / 2
+    - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D4 / 24
+    + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D6 / 720
+  );
+  const λ = λ0 + (
+      D
+    - (1 + 2 * T1 + C1) * D3 / 6
+    + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D5 / 120
+  ) / cosφ1;
+
+  return { lat: φ * 180 / Math.PI, lng: λ * 180 / Math.PI };
+}
+
+// ---------- URA carpark fetch ----------
+async function fetchURACarparks() {
+  const token = await getURAToken();
+  const headers = {
+    AccessKey: URA_ACCESS_KEY,
+    Token: token,
+    Accept: 'application/json',
+  };
+
+  // Fetch details (name, geometry, capacity) and availability in parallel
+  const [dRes, aRes] = await Promise.all([
+    fetch(`${URA_DS_URL}?service=Car_Park_Details`, { headers }),
+    fetch(`${URA_DS_URL}?service=Car_Park_Availability`, { headers }),
+  ]);
+  if (!dRes.ok) throw new Error(`URA Car_Park_Details: ${dRes.status} ${dRes.statusText}`);
+  if (!aRes.ok) throw new Error(`URA Car_Park_Availability: ${aRes.status} ${aRes.statusText}`);
+
+  const [dJson, aJson] = await Promise.all([dRes.json(), aRes.json()]);
+  if (dJson.Status !== 'Success') throw new Error(`URA details status: ${dJson.Message}`);
+  if (aJson.Status !== 'Success') throw new Error(`URA avail status: ${aJson.Message}`);
+
+  // Build availability map: ppCode → available car lots
+  const availMap = new Map();
+  for (const lot of aJson.Result || []) {
+    if (lot.lotType !== 'C') continue;
+    availMap.set(lot.carparkNo, parseInt(lot.lotsAvailable, 10) || 0);
+  }
+
+  // Process details → one record per car carpark with valid geometry
+  const seen = new Set();
+  const records = [];
+  for (const cp of dJson.Result || []) {
+    // Filter to car category only (URA uses "Car" as vehicle category)
+    if (!cp.vehCat || !cp.vehCat.toLowerCase().startsWith('car')) continue;
+    if (seen.has(cp.ppCode)) continue; // deduplicate ppCode
+    seen.add(cp.ppCode);
+
+    const geom = cp.geometries && cp.geometries[0];
+    if (!geom || !geom.coordinates) continue;
+    const parts = geom.coordinates.split(',');
+    if (parts.length < 2) continue;
+    const E = parseFloat(parts[0]); // Easting
+    const N = parseFloat(parts[1]); // Northing
+    if (!isFinite(E) || !isFinite(N)) continue;
+
+    const { lat, lng } = svy21ToWgs84(N, E);
+    if (!isFinite(lat) || !isFinite(lng)) continue;
+    // Sanity-check: must be within Singapore bounding box
+    if (lat < 1.1 || lat > 1.5 || lng < 103.5 || lng > 104.1) continue;
+
+    const available = availMap.get(cp.ppCode) ?? 0;
+    const total     = parseInt(cp.parkCapacity, 10) || 0;
+
+    records.push({
+      CarParkID:     `URA_${cp.ppCode}`,
+      Development:   cp.ppName || cp.ppCode,
+      Area:          '',
+      Agency:        'URA',
+      Location:      `${lat} ${lng}`,
+      LotType:       'C',
+      AvailableLots: available,
+      TotalLots:     total,
+    });
+  }
+
+  console.log(`[ura] loaded ${records.length} car carparks`);
+  return records;
+}
+
+// ---------- LTA carpark fetch (paginated) ----------
+async function fetchLTACarparks() {
   const merged = [];
   let skip = 0;
   const pageSize = 500;
@@ -44,6 +202,30 @@ async function fetchAllCarparks() {
   }
 
   return merged;
+}
+
+// ---------- Merged fetch: LTA + URA ----------
+async function fetchAllCarparks() {
+  const [ltaResult, uraResult] = await Promise.allSettled([
+    fetchLTACarparks(),
+    URA_ACCESS_KEY ? fetchURACarparks() : Promise.resolve([]),
+  ]);
+
+  if (ltaResult.status === 'rejected' && uraResult.status === 'rejected') {
+    throw ltaResult.reason;
+  }
+
+  const lta = ltaResult.status === 'fulfilled' ? ltaResult.value : [];
+  const ura = uraResult.status === 'fulfilled' ? uraResult.value : [];
+
+  if (ltaResult.status === 'rejected') {
+    console.warn('[lta] fetch failed, URA-only fallback:', ltaResult.reason.message);
+  }
+  if (uraResult.status === 'rejected') {
+    console.warn('[ura] fetch failed, LTA-only fallback:', uraResult.reason.message);
+  }
+
+  return [...lta, ...ura];
 }
 
 app.get('/api/carparks', async (req, res) => {
