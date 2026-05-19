@@ -536,60 +536,91 @@ app.get('/api/directions', async (req, res) => {
     return res.status(400).json({ error: 'Missing coordinates: need olat, olng, dlat, dlng' });
   }
 
-  try {
+  const mapsBase =
+    `https://www.google.com/maps/dir/?api=1` +
+    `&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=driving`;
+
+  async function callRoutes(avoidTolls) {
     const body = {
       origin:      { location: { latLng: { latitude:  parseFloat(olat), longitude: parseFloat(olng) } } },
       destination: { location: { latLng: { latitude:  parseFloat(dlat), longitude: parseFloat(dlng) } } },
       travelMode: 'DRIVE',
-      computeAlternativeRoutes: true,
+      computeAlternativeRoutes: !avoidTolls, // alternates only needed on the primary call
       languageCode: 'en-US',
     };
+    if (avoidTolls) body.routeModifiers = { avoidTolls: true };
 
     const r = await fetch(GROUTES_URL, {
       method: 'POST',
       headers: {
-        'Content-Type':       'application/json',
-        'X-Goog-Api-Key':     GOOGLE_MAPS_API_KEY,
-        // Request only the fields we use — keeps response small and avoids billing for unused data
-        'X-Goog-FieldMask':   'routes.description,routes.duration,routes.distanceMeters,routes.routeLabels,routes.legs.steps.navigationInstruction',
+        'Content-Type':     'application/json',
+        'X-Goog-Api-Key':   GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.description,routes.duration,routes.distanceMeters,routes.routeLabels,routes.legs.steps.navigationInstruction',
       },
       body: JSON.stringify(body),
     });
-
     if (!r.ok) {
       const errBody = await r.json().catch(() => ({}));
       throw new Error(errBody.error?.message || `Routes API: ${r.status} ${r.statusText}`);
     }
-    const j = await r.json();
+    return r.json();
+  }
 
+  function mapRoute(route, label) {
+    const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
+    const expressways = extractExpressways(route.description, steps);
+    const erp = estimateERP(expressways, vehicle);
+    return {
+      label,
+      summary:       route.description || '',
+      distance:      humanDistance(route.distanceMeters),
+      duration:      humanDuration(route.duration),
+      durationValue: parseInt((route.duration || '0s'), 10),
+      expressways,
+      erpLikely:     expressways.length > 0,
+      erp,
+      mapsUrl:       mapsBase,
+    };
+  }
+  const erpHigh = (rt) => (rt.erp && rt.erp.charging ? rt.erp.estHigh : 0);
+
+  try {
+    const j = await callRoutes(false);
     if (!j.routes || j.routes.length === 0) {
       return res.json({ routes: [], warning: 'No route found between these points.' });
     }
 
-    const mapsBase =
-      `https://www.google.com/maps/dir/?api=1` +
-      `&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=driving`;
+    const routes = j.routes.slice(0, 2).map((rt, i) =>
+      mapRoute(rt, i === 0 ? 'Fastest' : 'Alternative'));
 
-    const routes = j.routes.slice(0, 2).map((route, idx) => {
-      const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
-      const expressways = extractExpressways(route.description, steps);
-      const erp = estimateERP(expressways, vehicle);
-      return {
-        label:         idx === 0 ? 'Fastest' : 'Alternative',
-        summary:       route.description || '',
-        distance:      humanDistance(route.distanceMeters),
-        duration:      humanDuration(route.duration),
-        durationValue: parseInt((route.duration || '0s'), 10),
-        expressways,
-        erpLikely:     expressways.length > 0,
-        erp,
-        mapsUrl:       mapsBase,
-      };
-    });
+    // If the fastest route has ERP, actively hunt for an ERP-free / cheaper
+    // route via avoidTolls (Google models SG ERP as a toll). Only one extra
+    // call, and only when it can actually help — keeps API cost down.
+    let noErpFreeAlternative = false;
+    if (erpHigh(routes[0]) > 0) {
+      try {
+        const ja = await callRoutes(true);
+        const alt = ja.routes && ja.routes[0] ? mapRoute(ja.routes[0], 'ERP-free') : null;
+        const cheapestExisting = Math.min(...routes.map(erpHigh));
+        if (alt && erpHigh(alt) < cheapestExisting) {
+          alt.label = erpHigh(alt) === 0 ? 'ERP-free' : 'Cheaper';
+          // Replace any existing alternative; keep Fastest first
+          const dup = routes.findIndex((rt) => rt.summary === alt.summary);
+          if (dup > 0) routes.splice(dup, 1);
+          routes.splice(1, routes.length, alt);
+        } else {
+          noErpFreeAlternative = true;
+          if (routes.length > 1) routes.length = 1; // drop the same-ERP "alternative"
+        }
+      } catch (e) {
+        console.warn('[directions] avoidTolls call failed:', e.message);
+      }
+    }
 
     res.json({
       routes,
       vehicle,
+      noErpFreeAlternative,
       erpEffectiveFrom: ERP_RATES ? ERP_RATES.effectiveFrom : null,
       erpRatesUrl: ERP_RATES ? ERP_RATES.officialRatesUrl : null,
     });

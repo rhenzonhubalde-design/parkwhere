@@ -820,9 +820,15 @@
     font-size: 11px; color: var(--text-muted); font-weight: 500;
     padding-left: 21px; font-style: italic;
   }
+  .erp-noalt {
+    text-align: center; font-size: 12.5px; color: var(--text-muted);
+    font-weight: 500; margin: 12px 0 4px; padding: 10px 14px;
+    background: var(--surface-2); border-radius: 10px;
+    border: 1px solid var(--border);
+  }
   .erp-meta {
     text-align: center; font-size: 11.5px; color: var(--text-faint);
-    font-weight: 500; margin: 4px 0 8px;
+    font-weight: 500; margin: 8px 0;
   }
   .erp-meta a { color: var(--accent); text-decoration: none; }
   .erp-meta a:hover { text-decoration: underline; }
@@ -1779,12 +1785,16 @@
         </div>`;
     }).join('');
 
+    const noAlt = state.noErpFreeAlt
+      ? `<div class="erp-noalt">No ERP-free alternative — every sensible route to here passes the same gantries.</div>`
+      : '';
+
     const meta = state.erpMeta && state.erpMeta.effectiveFrom
       ? `<div class="erp-meta">ERP rates effective ${escapeHtml(state.erpMeta.effectiveFrom)} ·
            <a href="${escapeHtml(state.erpMeta.url || '#')}" target="_blank" rel="noopener">official LTA rates ↗</a></div>`
       : '';
 
-    container.innerHTML = `<div class="list">${cards}</div>${meta}`;
+    container.innerHTML = `<div class="list">${cards}</div>${noAlt}${meta}`;
   }
 
   function renderTrip() {
@@ -1891,6 +1901,7 @@
       const json = await res.json();
       if (json.warning) showToast(json.warning, 3000);
       state.routes = json.routes || [];
+      state.noErpFreeAlt = !!json.noErpFreeAlternative;
       state.erpMeta = { effectiveFrom: json.erpEffectiveFrom, url: json.erpRatesUrl };
       renderTripRoutes();
     } catch (err) {
