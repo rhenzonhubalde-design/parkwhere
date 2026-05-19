@@ -409,8 +409,9 @@
      ============================================================ */
   .seg-control {
     position: relative;
-    display: flex;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
     margin: 14px 0 2px;
     padding: 4px;
     background: var(--surface);
@@ -419,15 +420,14 @@
     box-shadow: var(--shadow-card);
   }
   .seg-btn {
-    flex: 1;
     position: relative;
     z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 9px 6px;
-    font-size: 12.5px;
+    gap: 6px;
+    padding: 10px 8px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--text-muted);
     border-radius: 9px;
@@ -450,14 +450,16 @@
   .seg-indicator {
     position: absolute;
     top: 4px;
-    left: 0;
+    left: 4px;
     width: 0;
-    height: calc(100% - 8px);
+    height: 0;
     background: var(--surface-2);
     border: 1px solid var(--border-strong);
     border-radius: 9px;
     transition: left 0.28s cubic-bezier(0.34, 1.4, 0.5, 1),
-                width 0.28s cubic-bezier(0.34, 1.4, 0.5, 1);
+                top 0.28s cubic-bezier(0.34, 1.4, 0.5, 1),
+                width 0.28s cubic-bezier(0.34, 1.4, 0.5, 1),
+                height 0.28s cubic-bezier(0.34, 1.4, 0.5, 1);
     z-index: 0;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
@@ -3188,7 +3190,9 @@
     const active = els.segControl.querySelector('.seg-btn.active');
     if (!active) return;
     els.segIndicator.style.left = active.offsetLeft + 'px';
+    els.segIndicator.style.top = active.offsetTop + 'px';
     els.segIndicator.style.width = active.offsetWidth + 'px';
+    els.segIndicator.style.height = active.offsetHeight + 'px';
   }
 
   function switchView(view) {
