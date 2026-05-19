@@ -8,8 +8,12 @@ const PORT = process.env.PORT || 3000;
 const LTA_API_KEY = process.env.LTA_API_KEY;
 const URA_ACCESS_KEY = process.env.URA_ACCESS_KEY;
 const LTA_ENDPOINT = 'https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2';
-const URA_TOKEN_URL = 'https://www.ura.gov.sg/uraDataService/insertNewToken.action';
-const URA_DS_URL = 'https://www.ura.gov.sg/uraDataService/invokeUraDS';
+// URA migrated the Data Service to eservice.ura.gov.sg with versioned /v1
+// paths; the access key is now an AccessKey header (not a query param) and
+// a browser-like User-Agent is required or the gateway 404s.
+const URA_TOKEN_URL = 'https://eservice.ura.gov.sg/uraDataService/insertNewToken/v1';
+const URA_DS_URL = 'https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1';
+const URA_UA = 'Mozilla/5.0 (compatible; ParkWhereSG/1.0; +parkwhere.live)';
 const ONEMAP_SEARCH = 'https://www.onemap.gov.sg/api/common/elastic/search';
 
 const CACHE_TTL_MS = 55 * 1000;
@@ -31,8 +35,12 @@ async function getURAToken() {
   if (uraToken.token && now - uraToken.fetchedAt < URA_TOKEN_TTL_MS) {
     return uraToken.token;
   }
-  const r = await fetch(`${URA_TOKEN_URL}?accesskey=${encodeURIComponent(URA_ACCESS_KEY)}`, {
-    headers: { Accept: 'application/json' },
+  const r = await fetch(URA_TOKEN_URL, {
+    headers: {
+      AccessKey: URA_ACCESS_KEY,
+      'User-Agent': URA_UA,
+      Accept: 'application/json',
+    },
   });
   if (!r.ok) throw new Error(`URA token API: ${r.status} ${r.statusText}`);
   const j = await r.json();
@@ -110,6 +118,7 @@ async function fetchURACarparks() {
   const headers = {
     AccessKey: URA_ACCESS_KEY,
     Token: token,
+    'User-Agent': URA_UA,
     Accept: 'application/json',
   };
 
