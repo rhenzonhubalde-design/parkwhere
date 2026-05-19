@@ -132,15 +132,51 @@ async function fetchURACarparks() {
     availMap.set(lot.carparkNo, parseInt(lot.lotsAvailable, 10) || 0);
   }
 
-  // Process details → one record per car carpark with valid geometry
-  const seen = new Set();
-  const records = [];
+  // URA returns MANY rows per ppCode — one per vehicle category and per
+  // time band (e.g. 7am–5pm vs 5pm–10pm). Group the Car rows so we keep
+  // every time band's rate instead of an arbitrary first one.
+  const groups = new Map(); // ppCode → { first, rows[] }
   for (const cp of dJson.Result || []) {
-    // Filter to car category only (URA uses "Car" as vehicle category)
     if (!cp.vehCat || !cp.vehCat.toLowerCase().startsWith('car')) continue;
-    if (seen.has(cp.ppCode)) continue; // deduplicate ppCode
-    seen.add(cp.ppCode);
+    let g = groups.get(cp.ppCode);
+    if (!g) { g = { first: cp, rows: [] }; groups.set(cp.ppCode, g); }
+    g.rows.push(cp);
+  }
 
+  const SYS = { B: 'Barrier', C: 'Coupon', E: 'Electronic parking' };
+  const norm = (v) => {
+    const s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    return /^\d/.test(s) ? `$${s}` : s;            // ensure a $ on bare numbers
+  };
+  // "08.30 AM–05.00 PM: $0.60 / 30 mins"
+  const band = (rate, min, start, end) => {
+    const r = norm(rate);
+    if (!r || /^\$?0(\.0+)?$/.test(r)) return '';  // skip $0 / blank bands
+    const t = (start && end) ? `${String(start).trim()}–${String(end).trim()}: ` : '';
+    const m = String(min || '').trim();
+    return `${t}${r}${m ? ` / ${m}` : ''}`;
+  };
+  const joinBands = (rows, rateKey, minKey) => {
+    const out = [];
+    let sawAny = false, sawZero = false;
+    for (const r of rows) {
+      const raw = r[rateKey];
+      if (raw != null && String(raw).trim() !== '') {
+        sawAny = true;
+        if (/^\$?0(\.0+)?$/.test(norm(raw))) sawZero = true;
+      }
+      const s = band(r[rateKey], r[minKey], r.startTime, r.endTime);
+      if (s && !out.includes(s)) out.push(s);
+      if (out.length >= 4) break;                  // keep it readable
+    }
+    if (out.length) return out.join(' · ');
+    // Rows existed but every band was $0 → genuinely free that day.
+    return (sawAny && sawZero) ? 'Free' : '';
+  };
+
+  const records = [];
+  for (const { first: cp, rows } of groups.values()) {
     const geom = cp.geometries && cp.geometries[0];
     if (!geom || !geom.coordinates) continue;
     const parts = geom.coordinates.split(',');
@@ -151,7 +187,6 @@ async function fetchURACarparks() {
 
     const { lat, lng } = svy21ToWgs84(N, E);
     if (!isFinite(lat) || !isFinite(lng)) continue;
-    // Sanity-check: must be within Singapore bounding box
     if (lat < 1.1 || lat > 1.5 || lng < 103.5 || lng > 104.1) continue;
 
     const available = availMap.get(cp.ppCode) ?? 0;
@@ -166,14 +201,14 @@ async function fetchURACarparks() {
       LotType:       'C',
       AvailableLots: available,
       TotalLots:     total,
-      // Rate / hours metadata (free-text — displayed verbatim, never parsed)
+      // Rate strings built from every time band (URA, current — verified).
       Rates: {
-        weekday:       cp.weekdayRate || '',
-        saturday:      cp.satdayRate || '',
-        sunPH:         cp.sunPHRate || '',
-        startTime:     cp.startTime || '',
-        endTime:       cp.endTime || '',
-        parkingSystem: cp.parkingSystem || '',
+        weekday:       joinBands(rows, 'weekdayRate', 'weekdayMin'),
+        saturday:      joinBands(rows, 'satdayRate', 'satdayMin'),
+        sunPH:         joinBands(rows, 'sunPHRate', 'sunPHMin'),
+        startTime:     '',   // time bands are embedded in the rate strings
+        endTime:       '',
+        parkingSystem: SYS[cp.parkingSystem] || cp.parkingSystem || '',
         vehCat:        cp.vehCat || '',
       },
     });

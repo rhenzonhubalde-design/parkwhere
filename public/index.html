@@ -1507,9 +1507,10 @@
         lines.push({ k: 'Hours', v: `${r.startTime}–${r.endTime}` });
       if (r.parkingSystem) lines.push({ k: 'System', v: titleCaseShort(r.parkingSystem) });
       const eff = effectiveRateStr(r.weekday, r.saturday, r.sunPH, tt);
+      const isFree = /^free$/i.test(eff);
       return {
-        headline: headlineRate(eff) || 'See rates',
-        dayLabel, freeNow: false, warn: false, lines, note: '',
+        headline: isFree ? 'Free now' : (headlineRate(eff) || 'See rates'),
+        dayLabel, freeNow: isFree, warn: false, lines, note: '',
       };
     }
 
