@@ -404,16 +404,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 9px 12px;
-    font-size: 13.5px;
+    gap: 5px;
+    padding: 9px 6px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text-muted);
     border-radius: 9px;
     transition: color 0.2s ease;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
   }
-  .seg-btn svg { width: 15px; height: 15px; stroke-width: 2; }
+  .seg-btn svg { width: 14px; height: 14px; stroke-width: 2; flex-shrink: 0; }
   .seg-btn.active { color: var(--text); }
   .seg-btn .seg-count {
     font-size: 11px;
@@ -980,7 +981,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
       </svg>
-      Trip
+      ERP charges
     </button>
   </div>
 
@@ -1010,9 +1011,11 @@
   const MIN_RESULTS_BEFORE_EXPAND = 5;
 
   const state = {
-    view: 'parking',          // 'parking' | 'traffic' | 'ev'
+    view: 'parking',          // 'parking' | 'traffic' | 'ev' | 'trip'
     position: null,
     locationLabel: null,
+    userGps: null,            // real device location (never overwritten by search)
+    userGpsLabel: null,       // reverse-geocoded label for userGps
     carparks: [],
     incidents: [],
     ev: [],
@@ -1788,14 +1791,22 @@
     els.locationPill.style.display = 'none';
     setBanner('');
 
+    // Default destination = whatever was searched in the main search bar
+    if (!state.tripDest && state.locationLabel && state.position) {
+      state.tripDest = {
+        lat: state.position.lat, lng: state.position.lng, label: state.locationLabel,
+      };
+    }
+
     // Keep form alive across route fetches — only rebuild if it's gone
     if (document.getElementById('tripForm')) {
       renderTripRoutes();
       return;
     }
 
-    const origin = state.position;
-    const originLabel = origin ? 'Current location' : 'Enable location or search above';
+    const origin = state.userGps || state.position;
+    const originLabel = state.userGpsLabel
+      || (origin ? 'Current location' : 'Enable location or search above');
 
     els.content.innerHTML = `
       <div class="trip-form" id="tripForm">
@@ -1858,7 +1869,7 @@
   }
 
   async function loadDirections() {
-    const origin = state.position;
+    const origin = state.userGps || state.position;
     const dest = state.tripDest;
     if (!origin || !dest || state.tripInFlight) return;
 
@@ -1868,7 +1879,7 @@
       routesDiv.innerHTML = `
         <div class="state-msg" style="padding:48px 0">
           <div class="spinner"></div>
-          <div class="title">Getting directions…</div>
+          <div class="title">Estimating ERP charges to ${escapeHtml(dest.label)}…</div>
         </div>`;
     }
 
@@ -2020,6 +2031,21 @@
     state.locationLabel = result.label;
     els.locationBtn.classList.remove('active-loc');
     state.cardEls.clear();
+
+    // In the ERP-charges view a search sets the destination, not a carpark area
+    if (state.view === 'trip') {
+      state.tripDest = { lat: result.lat, lng: result.lng, label: result.label };
+      if (!document.getElementById('tripForm')) renderTrip();
+      const di = document.getElementById('tripDestInput');
+      if (di) di.value = result.label;
+      const gd = document.getElementById('getDirectionsBtn');
+      if (gd) gd.disabled = false;
+      if (state.userGps || state.position) loadDirections();
+      updateTrafficBadge();
+      updateEVBadge();
+      return;
+    }
+
     const what = state.view === 'traffic' ? 'incidents' : 'carparks';
     showLoading(`Loading ${what} near ${escapeHtml(result.label)}…`);
     await refreshActive({ silent: true });
@@ -2092,10 +2118,12 @@
       async (pos) => {
         state.position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         state.locationLabel = null;
+        captureUserGps(pos.coords.latitude, pos.coords.longitude);
         els.locationBtn.classList.add('active-loc');
         els.searchInput.value = '';
         els.clearBtn.classList.remove('show');
         state.cardEls.clear();
+        if (state.view === 'trip') { renderTrip(); startAutoRefresh(); return; }
         showLoading(state.view === 'traffic' ? 'Finding incidents near you…' : 'Finding carparks near you…');
         await refreshActive({ silent: true });
         startAutoRefresh();
@@ -2108,6 +2136,23 @@
       },
       { timeout: GEO_TIMEOUT_MS, maximumAge: 30000, enableHighAccuracy: false }
     );
+  }
+
+  // Record the real device location (kept separate from search-overwritten
+  // state.position) and reverse-geocode it for a readable origin label.
+  async function captureUserGps(lat, lng) {
+    state.userGps = { lat, lng };
+    try {
+      const r = await fetch(`/api/revgeocode?lat=${lat}&lng=${lng}`);
+      const j = await r.json();
+      if (j && j.label) {
+        state.userGpsLabel = j.label;
+        if (state.view === 'trip') {
+          const el = document.querySelector('.trip-origin-label');
+          if (el) el.textContent = j.label;
+        }
+      }
+    } catch { /* soft-fail → keep "Current location" */ }
   }
 
   function startAutoRefresh() {
@@ -2137,6 +2182,7 @@
         resolved = true;
         clearTimeout(timeout);
         state.position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        captureUserGps(pos.coords.latitude, pos.coords.longitude);
         els.locationBtn.classList.add('active-loc');
         await refreshActive({ silent: true });
         startAutoRefresh();

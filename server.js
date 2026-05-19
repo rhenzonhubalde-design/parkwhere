@@ -634,6 +634,55 @@ app.get('/api/geocode', async (req, res) => {
   }
 });
 
+// ---------- Reverse geocode (coords → place name) ----------
+// OneMap's revgeocode needs an auth token; OSM Nominatim is free + tokenless.
+const revGeoCache = new Map(); // key "lat,lng"(4dp) → { label, at }
+const REVGEO_TTL_MS = 24 * 60 * 60 * 1000;
+
+app.get('/api/revgeocode', async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (!isFinite(lat) || !isFinite(lng)) {
+    return res.status(400).json({ error: 'lat & lng required' });
+  }
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const hit = revGeoCache.get(key);
+  if (hit && Date.now() - hit.at < REVGEO_TTL_MS) {
+    return res.json({ label: hit.label, cached: true });
+  }
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}` +
+                `&format=jsonv2&zoom=18&addressdetails=1`;
+    const r = await fetch(url, {
+      headers: { 'User-Agent': 'ParkWhereSG/1.0 (parkwhere.live)', Accept: 'application/json' },
+    });
+    if (!r.ok) throw new Error(`Nominatim ${r.status}`);
+    const j = await r.json();
+    const a = j.address || {};
+    // Build a concise, human label. A named place (amenity/building) stands
+    // on its own; a plain road gets a suburb for context.
+    const named = a.amenity || a.building || a.shop || a.office || '';
+    const road  = a.road || '';
+    const area  = a.suburb || a.neighbourhood || a.town || a.city || a.county || '';
+    let label;
+    if (named) {
+      label = named;                                  // e.g. "Nanyang Technological University"
+    } else if (road) {
+      label = area && area !== road ? `${road}, ${area}` : road;
+    } else {
+      label = area || (j.display_name || '').split(',').slice(0, 2).join(',').trim()
+              || 'Current location';
+    }
+    if (label.length > 48) label = label.slice(0, 47).trim() + '…';
+    revGeoCache.set(key, { label, at: Date.now() });
+    res.json({ label });
+  } catch (err) {
+    console.error('[revgeocode] failed:', err.message);
+    // Soft-fail: caller falls back to "Current location"
+    res.json({ label: null, error: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   const cacheAge = cache.data ? Math.round((Date.now() - cache.fetchedAt) / 1000) : null;
   res.json({ status: 'ok', cacheAge });
