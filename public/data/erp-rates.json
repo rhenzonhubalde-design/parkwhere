@@ -1,0 +1,121 @@
+{
+  "source": "LTA Base ERP Rate Table — 1PCU_ERP_Rates_Report.pdf",
+  "effectiveFrom": "2026-03-23",
+  "lastTranscribed": "2026-05-19",
+  "officialRatesUrl": "https://www.lta.gov.sg/content/ltagov/en/getting_around/driving_in_singapore/electronic_road_pricing_erp.html",
+  "_note": "CBD/Orchard cordon gantries are currently $0 (all cells blank in the PDF). Charges apply on WEEKDAYS only — Saturdays, Sundays and Public Holidays are $0 across the board. Rates below are the per-pass amount for a Passenger Car (Base ERP Rate). Multiply by vehicleMultipliers for other vehicle types. TODO: re-check LTA DataMall monthly for an updated ERP rates PDF.",
+  "vehicleMultipliers": {
+    "motorcycle": 0.5,
+    "car": 1.0,
+    "heavy": 1.5
+  },
+  "chargingDays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+  "corridors": [
+    {
+      "id": "AYE",
+      "expressway": "AYE",
+      "label": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+      "gantries": "36, 52, 53, 74, 41",
+      "windows": [
+        { "start": "07:30", "end": "07:55", "rate": 1.00 },
+        { "start": "07:55", "end": "08:00", "rate": 2.00 },
+        { "start": "08:00", "end": "08:30", "rate": 3.00 },
+        { "start": "08:30", "end": "08:55", "rate": 5.00 },
+        { "start": "08:55", "end": "09:25", "rate": 4.00 },
+        { "start": "09:25", "end": "09:55", "rate": 3.00 },
+        { "start": "09:55", "end": "10:00", "rate": 1.50 },
+        { "start": "17:30", "end": "17:55", "rate": 2.00 },
+        { "start": "17:55", "end": "18:55", "rate": 4.00 },
+        { "start": "18:55", "end": "19:25", "rate": 3.00 },
+        { "start": "19:25", "end": "19:55", "rate": 1.00 }
+      ]
+    },
+    {
+      "id": "CTE",
+      "expressway": "CTE",
+      "label": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+      "gantries": "31, 33, 34, 35, 46, 51, 67, 68",
+      "windows": [
+        { "start": "07:30", "end": "07:35", "rate": 2.00 },
+        { "start": "07:35", "end": "08:00", "rate": 2.00 },
+        { "start": "08:00", "end": "08:05", "rate": 2.50 },
+        { "start": "08:05", "end": "08:30", "rate": 3.00 },
+        { "start": "08:30", "end": "08:35", "rate": 4.00 },
+        { "start": "08:35", "end": "08:55", "rate": 5.00 },
+        { "start": "08:55", "end": "09:05", "rate": 4.50 },
+        { "start": "09:05", "end": "09:25", "rate": 4.00 },
+        { "start": "09:25", "end": "09:30", "rate": 3.50 },
+        { "start": "09:30", "end": "09:55", "rate": 3.00 },
+        { "start": "09:55", "end": "10:00", "rate": 1.50 },
+        { "start": "17:30", "end": "17:35", "rate": 2.00 },
+        { "start": "17:35", "end": "18:25", "rate": 4.00 },
+        { "start": "18:25", "end": "18:55", "rate": 4.00 },
+        { "start": "18:55", "end": "19:25", "rate": 3.00 },
+        { "start": "19:25", "end": "19:55", "rate": 1.50 }
+      ]
+    },
+    {
+      "id": "ECP",
+      "expressway": "ECP",
+      "label": "ECP (City; eastbound before KPE)",
+      "gantries": "30, 73",
+      "windows": [
+        { "start": "07:00", "end": "07:05", "rate": 1.00 },
+        { "start": "07:05", "end": "07:30", "rate": 2.00 },
+        { "start": "07:30", "end": "08:00", "rate": 2.00 },
+        { "start": "08:00", "end": "08:30", "rate": 2.50 },
+        { "start": "08:30", "end": "09:25", "rate": 3.00 },
+        { "start": "09:25", "end": "09:55", "rate": 2.00 },
+        { "start": "09:55", "end": "10:00", "rate": 0.50 },
+        { "start": "17:30", "end": "18:55", "rate": 1.00 },
+        { "start": "18:55", "end": "19:00", "rate": 0.50 }
+      ]
+    },
+    {
+      "id": "PIE",
+      "expressway": "PIE",
+      "label": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+      "gantries": "32, 37, 38, 42, 45, 65",
+      "windows": [
+        { "start": "07:35", "end": "08:00", "rate": 1.00 },
+        { "start": "08:00", "end": "08:30", "rate": 2.00 },
+        { "start": "08:30", "end": "09:00", "rate": 3.00 },
+        { "start": "09:00", "end": "09:30", "rate": 2.00 },
+        { "start": "09:30", "end": "10:00", "rate": 1.00 },
+        { "start": "17:30", "end": "18:30", "rate": 2.00 },
+        { "start": "18:30", "end": "19:00", "rate": 1.00 }
+      ]
+    },
+    {
+      "id": "KPE",
+      "expressway": "KPE",
+      "label": "KPE (southbound before ECP)",
+      "gantries": "50",
+      "windows": [
+        { "start": "08:00", "end": "09:00", "rate": 1.00 },
+        { "start": "17:30", "end": "19:00", "rate": 1.00 }
+      ]
+    },
+    {
+      "id": "BKE",
+      "expressway": "BKE",
+      "label": "BKE (between Dairy Farm Road and PIE)",
+      "gantries": "54",
+      "windows": [
+        { "start": "07:30", "end": "08:00", "rate": 1.00 },
+        { "start": "08:00", "end": "09:00", "rate": 2.00 },
+        { "start": "09:00", "end": "09:30", "rate": 1.00 }
+      ]
+    },
+    {
+      "id": "MCE",
+      "expressway": "MCE",
+      "label": "MCE (westbound before Central Blvd; eastbound after Maxwell)",
+      "gantries": "90, 91, 92, 93",
+      "windows": [
+        { "start": "08:00", "end": "09:00", "rate": 2.00 },
+        { "start": "17:30", "end": "19:00", "rate": 1.00 }
+      ]
+    }
+  ]
+}

@@ -447,11 +447,91 @@ function humanDistance(meters) {
   return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
+// ---------- ERP estimator (PDF-derived, corridor + time-window) ----------
+let ERP_RATES = null;
+try {
+  ERP_RATES = JSON.parse(
+    require('fs').readFileSync(path.join(__dirname, 'public', 'data', 'erp-rates.json'), 'utf8')
+  );
+  console.log(`[erp] loaded rate table (effective ${ERP_RATES.effectiveFrom}, ${ERP_RATES.corridors.length} corridors)`);
+} catch (e) {
+  console.warn('[erp] could not load erp-rates.json:', e.message);
+}
+
+// Current Singapore wall-clock (UTC+8, no DST)
+function sgNow() {
+  const utc = Date.now() + new Date().getTimezoneOffset() * 60000;
+  const d = new Date(utc + 8 * 3600000);
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  return {
+    minutes: d.getHours() * 60 + d.getMinutes(),
+    dow,
+    hhmm: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+    isWeekday: dow >= 1 && dow <= 5,
+  };
+}
+const toMin = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+
+// Estimate ERP for a route given the expressways it uses + vehicle type.
+// Honest by design: per-corridor estimate (a route on AYE may not hit every AYE
+// gantry), surfaced as a range, never a fake-precise total.
+function estimateERP(expressways, vehicle) {
+  if (!ERP_RATES) return null;
+  const mult = ERP_RATES.vehicleMultipliers[vehicle] ?? 1.0;
+  const now = sgNow();
+
+  if (!now.isWeekday) {
+    return { charging: false, total: 0, sgTime: now.hhmm,
+      reason: 'No ERP — weekends & public holidays are free.', corridors: [] };
+  }
+
+  const matched = [];
+  let lo = 0, hi = 0;
+  for (const code of expressways) {
+    const corr = ERP_RATES.corridors.find((c) => c.expressway === code);
+    if (!corr) continue;
+    const win = corr.windows.find(
+      (w) => now.minutes >= toMin(w.start) && now.minutes < toMin(w.end)
+    );
+    if (win) {
+      const r = +(win.rate * mult).toFixed(2);
+      matched.push({ expressway: code, label: corr.label, rate: r,
+        window: `${win.start}–${win.end}` });
+      hi += r;          // upper bound: every matched corridor charges once
+      lo = Math.max(lo, r); // lower bound: at least the single priciest corridor
+    }
+  }
+
+  if (matched.length === 0) {
+    const usedErpExpwy = expressways.some((e) =>
+      ERP_RATES.corridors.some((c) => c.expressway === e));
+    return { charging: false, total: 0, sgTime: now.hhmm,
+      reason: usedErpExpwy
+        ? 'No ERP now — outside charging hours on these roads.'
+        : 'No priced ERP corridors on this route.',
+      corridors: [] };
+  }
+
+  return {
+    charging: true,
+    sgTime: now.hhmm,
+    estLow: +lo.toFixed(2),
+    estHigh: +hi.toFixed(2),
+    corridors: matched,
+    reason: `Peak ERP in effect (${now.hhmm}, weekday).`,
+  };
+}
+
 app.get('/api/directions', async (req, res) => {
   if (!GOOGLE_MAPS_API_KEY) {
     return res.status(503).json({ error: 'Directions service not configured on this server.' });
   }
   const { olat, olng, dlat, dlng } = req.query;
+  const vehicle = ['car', 'motorcycle', 'heavy'].includes(req.query.vehicle)
+    ? req.query.vehicle : 'car';
   if (!olat || !olng || !dlat || !dlng) {
     return res.status(400).json({ error: 'Missing coordinates: need olat, olng, dlat, dlng' });
   }
@@ -493,6 +573,7 @@ app.get('/api/directions', async (req, res) => {
     const routes = j.routes.slice(0, 2).map((route, idx) => {
       const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
       const expressways = extractExpressways(route.description, steps);
+      const erp = estimateERP(expressways, vehicle);
       return {
         label:         idx === 0 ? 'Fastest' : 'Alternative',
         summary:       route.description || '',
@@ -501,11 +582,17 @@ app.get('/api/directions', async (req, res) => {
         durationValue: parseInt((route.duration || '0s'), 10),
         expressways,
         erpLikely:     expressways.length > 0,
+        erp,
         mapsUrl:       mapsBase,
       };
     });
 
-    res.json({ routes });
+    res.json({
+      routes,
+      vehicle,
+      erpEffectiveFrom: ERP_RATES ? ERP_RATES.effectiveFrom : null,
+      erpRatesUrl: ERP_RATES ? ERP_RATES.officialRatesUrl : null,
+    });
   } catch (err) {
     console.error('[directions] failed:', err.message);
     res.status(502).json({ error: 'Could not fetch directions', detail: err.message });
