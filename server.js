@@ -166,6 +166,16 @@ async function fetchURACarparks() {
       LotType:       'C',
       AvailableLots: available,
       TotalLots:     total,
+      // Rate / hours metadata (free-text — displayed verbatim, never parsed)
+      Rates: {
+        weekday:       cp.weekdayRate || '',
+        saturday:      cp.satdayRate || '',
+        sunPH:         cp.sunPHRate || '',
+        startTime:     cp.startTime || '',
+        endTime:       cp.endTime || '',
+        parkingSystem: cp.parkingSystem || '',
+        vehCat:        cp.vehCat || '',
+      },
     });
   }
 
@@ -260,6 +270,119 @@ app.get('/api/carparks', async (req, res) => {
       });
     }
     res.status(502).json({ error: 'Upstream LTA API unavailable', detail: err.message });
+  }
+});
+
+// ---------- Carpark metadata: HDB info + Singapore public holidays ----------
+// Both change at most daily — fetched once and cached 24 h. HDB short-term
+// rates are a fixed HDB policy (hard-coded client-side); this supplies the
+// per-carpark operating hours / free-parking / night-parking / gantry meta.
+const DATAGOV_DS = 'https://data.gov.sg/api/action/datastore_search';
+const HDB_RESOURCE = 'd_23f946fa557947f93a8043bbef41dd09';
+const PH_COLLECTION = 'https://api-production.data.gov.sg/v2/public/api/collections/691/metadata';
+const META_TTL_MS = 24 * 60 * 60 * 1000;
+let metaCache = { hdb: null, publicHolidays: null, fetchedAt: 0 };
+
+async function fetchHDBCarparks() {
+  const out = {};
+  let offset = 0;
+  const limit = 500;
+  while (true) {
+    const url = `${DATAGOV_DS}?resource_id=${HDB_RESOURCE}&limit=${limit}&offset=${offset}`;
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error(`HDB API ${r.status}`);
+    const j = await r.json();
+    const recs = (j.result && j.result.records) || [];
+    for (const rec of recs) {
+      const id = (rec.car_park_no || '').trim().toUpperCase();
+      if (!id) continue;
+      out[id] = {
+        carParkType:   rec.car_park_type || '',
+        parkingSystem: rec.type_of_parking_system || '',
+        shortTerm:     rec.short_term_parking || '',
+        freeParking:   rec.free_parking || '',
+        nightParking:  rec.night_parking || '',
+        decks:         rec.car_park_decks || '',
+        gantryHeight:  rec.gantry_height || '',
+      };
+    }
+    offset += limit;
+    const total = j.result && j.result.total ? j.result.total : 0;
+    if (recs.length < limit || offset >= total || offset > 6000) break;
+  }
+  console.log(`[hdb] loaded ${Object.keys(out).length} carpark records`);
+  return out;
+}
+
+// Public-holiday datasets on data.gov.sg are annual (one resource per year).
+// Discover the resource that covers the *current* year from collection 691,
+// so this keeps working in future years with no code change.
+async function fetchPublicHolidays() {
+  const year = new Date().getFullYear();
+  let childIds = [];
+  try {
+    const cr = await fetch(PH_COLLECTION, { headers: { Accept: 'application/json' } });
+    if (cr.ok) {
+      const cj = await cr.json();
+      childIds = (cj.data && cj.data.collectionMetadata &&
+                  cj.data.collectionMetadata.childDatasets) || [];
+    }
+  } catch (e) { console.warn('[ph] collection lookup failed:', e.message); }
+  // Fast-path known 2026 dataset first, then discovered children.
+  const candidates = ['d_149b61ad0a22f61c09dc80f2df5bbec8', ...childIds];
+  for (const rid of [...new Set(candidates)]) {
+    try {
+      const r = await fetch(`${DATAGOV_DS}?resource_id=${rid}&limit=30`,
+        { headers: { Accept: 'application/json' } });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const recs = (j.result && j.result.records) || [];
+      const dates = recs
+        .map((x) => (x.date || '').slice(0, 10))
+        .filter((d) => d.startsWith(String(year)));
+      if (dates.length) {
+        console.log(`[ph] ${dates.length} holidays for ${year} (${rid})`);
+        return dates;
+      }
+    } catch { /* try next */ }
+  }
+  console.warn(`[ph] no public-holiday dataset found for ${year}`);
+  return [];
+}
+
+app.get('/api/carpark-meta', async (req, res) => {
+  const now = Date.now();
+  if (metaCache.hdb && now - metaCache.fetchedAt < META_TTL_MS) {
+    return res.json({
+      hdb: metaCache.hdb,
+      publicHolidays: metaCache.publicHolidays || [],
+      fetchedAt: new Date(metaCache.fetchedAt).toISOString(),
+      stale: false,
+    });
+  }
+  try {
+    const [hdb, publicHolidays] = await Promise.all([
+      fetchHDBCarparks(),
+      fetchPublicHolidays().catch((e) => {
+        console.warn('[ph] fetch failed:', e.message); return [];
+      }),
+    ]);
+    metaCache = { hdb, publicHolidays, fetchedAt: now };
+    res.json({
+      hdb, publicHolidays,
+      fetchedAt: new Date(now).toISOString(), stale: false,
+    });
+  } catch (err) {
+    console.error('[carpark-meta] failed:', err.message);
+    if (metaCache.hdb) {
+      return res.json({
+        hdb: metaCache.hdb,
+        publicHolidays: metaCache.publicHolidays || [],
+        fetchedAt: new Date(metaCache.fetchedAt).toISOString(),
+        stale: true, error: err.message,
+      });
+    }
+    res.status(502).json({ error: 'Carpark metadata unavailable', detail: err.message });
   }
 });
 

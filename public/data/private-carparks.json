@@ -13,7 +13,13 @@
     "address": "2 Orchard Turn, Singapore 238801",
     "lat": 1.3048,
     "lng": 103.8318,
-    "parkingUrl": "https://www.ionorchard.com/en/ION-Orchard/getting-here/parking.html"
+    "parkingUrl": "https://www.ionorchard.com/en/ION-Orchard/getting-here/parking.html",
+    "weekdayRate": "Mon-Thu: 8am-4.59pm: $2.67 for 1st hr; $0.64 for sub. 15 mins · Mon-Thu: 5pm-11.59pm: $3 per entry. 12am-7.59am $1.07 per hr",
+    "saturdayRate": "Fri/Sat-Sun/PH: 8am-4.59pm: $2.56 for 1st hr; $0.94 for sub. 15 mins. 5-11.59pm: $3.74 per entry. 12am-7.59am $1.07 per hour",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "ION Orchard",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_NGEE_ANN",
@@ -21,7 +27,13 @@
     "address": "391 Orchard Road, Singapore 238872",
     "lat": 1.3043,
     "lng": 103.8315,
-    "parkingUrl": "https://www.ngeeanncity.com.sg/facilities-and-services/carpark"
+    "parkingUrl": "https://www.ngeeanncity.com.sg/facilities-and-services/carpark",
+    "weekdayRate": "12.01am-12pm, 2.01pm-5pm: $1.28 for ½ hr , 12.01pm-2pm: $1.82 for ½ hr · 5.01pm-7pm:$1.82 for ½ hr; Aft 7pm: $4.28 per entry",
+    "saturdayRate": "12.01am-12pm, 2.01pm-5pm: $2.57 for 1st hr; $1.61 for sub. ½ hr, 12.01pm-2pm, 5.01pm-7pm: $3.64 for 1st hr; $2.14 for sub. ½ hr, Aft 7pm: $4.28 per entry",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Ngee Ann City",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_VIVO",
@@ -29,7 +41,13 @@
     "address": "1 HarbourFront Walk, Singapore 098585",
     "lat": 1.2644,
     "lng": 103.8221,
-    "parkingUrl": "https://www.vivocity.com.sg/getting-here"
+    "parkingUrl": "https://www.vivocity.com.sg/getting-here",
+    "weekdayRate": "7am-6pm: $1.20 for 1st hr; $0.60 for sub. ½ hr · 6.01pm-4am: $3 per entry; Aft 4am: $2.50 per hr",
+    "saturdayRate": "7am-6pm: $1.40 for 1st hr; $0.70 for sub. ½ hr; 6.01pm-4am: $3.50 per entry; Aft 4am: $2.50 per hr",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Vivocity",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_SUNTEC",
@@ -37,7 +55,13 @@
     "address": "3 Temasek Blvd, Singapore 038983",
     "lat": 1.2931,
     "lng": 103.8571,
-    "parkingUrl": "https://www.sunteccity.com.sg/visitor-info/carpark"
+    "parkingUrl": "https://www.sunteccity.com.sg/visitor-info/carpark",
+    "weekdayRate": "7am-5pm: $2.20 for 1st hr; $1.10 for sub. ½ hr (excluding PH) · 5pm-12am:$2.20 per entry; Aft 12am:$1.10 per hr",
+    "saturdayRate": "$1.10 per hr",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Suntec City",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_MARINA_SQ",
@@ -45,7 +69,13 @@
     "address": "6 Raffles Blvd, Singapore 039594",
     "lat": 1.2912,
     "lng": 103.8573,
-    "parkingUrl": "https://www.marinasquare.com.sg/get-here"
+    "parkingUrl": "https://www.marinasquare.com.sg/get-here",
+    "weekdayRate": "Mon-Thu: 7am-5pm: $2.20 for 1st 2hrs; $1.10 per ½ hr for sub. ½ hr · Mon-Thu: 5pm-2am: $2.20 per entry; 2am-7am: $1.10 per ½ hr",
+    "saturdayRate": "Fri/Sat-Sun/PH: 7am-2am :$2.40 for 1st 2 hrs; $1.20 per hr for sub. 2hrs; $1.40 per ½ hr for sub. ½ hr after 4 hrs of parking. 2am-7am: $1.10 per ½ hr",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Marina Square",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_BUGIS_PLUS",
@@ -53,7 +83,13 @@
     "address": "201 Victoria St, Singapore 188067",
     "lat": 1.2996,
     "lng": 103.8551,
-    "parkingUrl": "https://www.bugisplus.com.sg/getting-here/parking"
+    "parkingUrl": "https://www.bugisplus.com.sg/getting-here/parking",
+    "weekdayRate": "8am-5pm: $1.07 for 1st hr; $0.37 for sub. 10mins · Mon-Thu: Aft 5pm: $2.50 per entry. Fri: $2.50 for 1st 2hrs; $0.37 for sub. 10 mins",
+    "saturdayRate": "$2.50 for 1st 2hrs; $0.37 for sub. 10 mins",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Bugis Junction",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_NEX",
@@ -61,7 +97,13 @@
     "address": "23 Serangoon Central, Singapore 556083",
     "lat": 1.3507,
     "lng": 103.8727,
-    "parkingUrl": "https://www.nex.com.sg/getting-here/car-park"
+    "parkingUrl": "https://www.nex.com.sg/getting-here/car-park",
+    "weekdayRate": "Mon-Fri: $1.30 for 1st hr; $0.65 for sub. ½ hr",
+    "saturdayRate": "Sat, Sun / Ph: $1.40 for 1st hr; $0.70 for sub. ½ hr",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Nex Mall",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_TAMPINES1",
@@ -69,7 +111,13 @@
     "address": "10 Tampines Central 1, Singapore 529536",
     "lat": 1.3527,
     "lng": 103.9451,
-    "parkingUrl": "https://www.tampines1.com.sg/getting-here"
+    "parkingUrl": "https://www.tampines1.com.sg/getting-here",
+    "weekdayRate": "1st hr $1.07; 2nd hr $0.55 per ½ hr; Aft 2hrs: $0.35 per 15 mins",
+    "saturdayRate": "1st hr $1.28; 2nd hr $0.60 per ½ hr; Aft 2hrs: $0.45 per 15 mins",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Tampines 1",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_JURONG_PT",
@@ -77,15 +125,27 @@
     "address": "1 Jurong West Central 2, Singapore 648886",
     "lat": 1.3398,
     "lng": 103.7064,
-    "parkingUrl": "https://www.jp1.com.sg/carparks"
+    "parkingUrl": "https://www.jp1.com.sg/carparks",
+    "weekdayRate": "7am-5pm: $1.07 for 1st 2hrs; $1.07 for sub. hr (Free parking from 12pm-2pm on Monday-Thursday) · 5pm-9pm: $2.14 for 1st 2hrs; $1.07 for sub. hr; Aft 9pm: $1.07 for 1st 3hrs; $1.07 for sub. hr",
+    "saturdayRate": "$2.14 for 1st 2hrs; $1.07 for sub. hr; Aft 9pm: $1.07 for 1st 3hrs; $1.07 for sub. hr",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Jurong Point Shopping Centre",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_NORTHPOINT",
     "name": "Northpoint City",
     "address": "930 Yishun Ave 2, Singapore 769098",
-    "lat": 1.4290,
+    "lat": 1.429,
     "lng": 103.8358,
-    "parkingUrl": "https://www.northpointcity.com.sg/getting-here/carpark"
+    "parkingUrl": "https://www.northpointcity.com.sg/getting-here/carpark",
+    "weekdayRate": "Daily: $1.20 for 1st hr or part thereof; $0.80 for sub. ½ hr or part thereof.",
+    "saturdayRate": "Same as weekday",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Northpoint Shopping Centre",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   },
   {
     "id": "PVT_CAUSEWAY_PT",
@@ -93,6 +153,12 @@
     "address": "1 Woodlands Square, Singapore 738099",
     "lat": 1.4343,
     "lng": 103.7862,
-    "parkingUrl": "https://www.causewaypoint.com.sg/getting-here/carpark"
+    "parkingUrl": "https://www.causewaypoint.com.sg/getting-here/carpark",
+    "weekdayRate": "7am-10.30pm: $1.20 for 1st hr or part thereof; $0.60 for sub.½ hr or part thereof.",
+    "saturdayRate": "7am-12 midnight: $1.20 for 1st hr or part thereof; $0.60 for sub. ½ hr or part thereof.",
+    "sunPHRate": "Same as Saturday",
+    "ratesSource": "Causeway Point",
+    "ratesVerified": false,
+    "ratesLastChecked": "2018-11-01"
   }
 ]

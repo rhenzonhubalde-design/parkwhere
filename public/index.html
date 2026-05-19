@@ -533,8 +533,9 @@
 
   .card {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
     padding: 16px 18px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -676,6 +677,67 @@
   .card-bar-fill.amber { background: var(--amber); }
   .card-bar-fill.red   { background: var(--red); }
   .card-bar-fill.grey  { background: var(--grey); }
+
+  /* ============================================================
+     Carpark rates (expandable section on card)
+     ============================================================ */
+  .card-top { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .card-rates {
+    width: 100%; margin-top: 12px; padding-top: 11px;
+    border-top: 1px solid var(--border);
+  }
+  .rates-row {
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+    font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+  }
+  .rates-row:hover { color: var(--text); }
+  .rates-row .rates-money { color: var(--text); font-weight: 700; }
+  .rates-sep {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-faint); flex-shrink: 0;
+  }
+  .rates-free {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--green-soft); color: var(--green);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.01em;
+  }
+  .rates-free svg { width: 11px; height: 11px; stroke-width: 2.5; }
+  .rates-warn {
+    color: var(--amber); cursor: help; flex-shrink: 0;
+    display: inline-flex; align-items: center;
+  }
+  .rates-warn svg { width: 13px; height: 13px; stroke-width: 2; }
+  .rates-chev {
+    margin-left: auto; flex-shrink: 0; color: var(--text-faint);
+    transition: transform 0.2s ease; display: inline-flex;
+  }
+  .rates-chev svg { width: 15px; height: 15px; stroke-width: 2.5; }
+  .card-rates.open .rates-chev { transform: rotate(90deg); }
+  .rates-detail {
+    display: none; margin-top: 10px;
+    font-size: 12.5px; color: var(--text-muted);
+  }
+  .card-rates.open .rates-detail { display: block; }
+  .rates-line {
+    display: flex; gap: 12px; padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rates-line:last-child { border-bottom: none; }
+  .rates-line .rk {
+    flex-shrink: 0; width: 78px; color: var(--text-faint);
+    font-weight: 600; text-transform: uppercase;
+    font-size: 10.5px; letter-spacing: 0.05em; padding-top: 1px;
+  }
+  .rates-line .rv {
+    flex: 1; color: var(--text); font-weight: 500; line-height: 1.45;
+  }
+  .rates-line .rv.free-hl { color: var(--green); font-weight: 600; }
+  .rates-note {
+    margin-top: 8px; font-size: 11px; font-style: italic;
+    color: var(--text-faint); line-height: 1.4;
+  }
 
   /* ============================================================
      Trip tab — form
@@ -1155,6 +1217,8 @@
     userGps: null,            // real device location (never overwritten by search)
     userGpsLabel: null,       // reverse-geocoded label for userGps
     carparks: [],
+    carparkMeta: { hdb: {}, publicHolidays: [] },
+    ratesExpanded: new Set(),   // carpark ids with the rates section open
     incidents: [],
     cameras: [],
     camerasFetchedAt: 0,
@@ -1267,6 +1331,150 @@
     els.banner.innerHTML = msg ? `<div class="banner">${msg}</div>` : '';
   }
 
+  // ============================================================
+  //  Parking rates (Workstream 5)
+  // ============================================================
+  const FREE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  const WARN_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+  const CHEV_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
+  // Singapore-local now, regardless of device timezone.
+  function sgNow() {
+    const f = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Singapore', weekday: 'short',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const p = Object.fromEntries(f.formatToParts(new Date()).map((x) => [x.type, x.value]));
+    return {
+      ymd: `${p.year}-${p.month}-${p.day}`,
+      dow: p.weekday,                                  // 'Sun', 'Mon', …
+      mins: (parseInt(p.hour, 10) % 24) * 60 + parseInt(p.minute, 10),
+    };
+  }
+  function isPublicHoliday(ymd) {
+    return (state.carparkMeta.publicHolidays || []).includes(ymd);
+  }
+
+  // "7AM-10.30PM" / "1PM-10.30PM" → { from: mins, to: mins }  (null if unparseable)
+  function parseFreeWindow(str) {
+    if (!str) return null;
+    const m = String(str).toUpperCase().match(
+      /(\d{1,2})(?:[.:](\d{2}))?\s*(AM|PM)\s*-\s*(\d{1,2})(?:[.:](\d{2}))?\s*(AM|PM)/);
+    if (!m) return null;
+    const to24 = (h, mm, ap) => {
+      h = parseInt(h, 10) % 12;
+      if (ap === 'PM') h += 12;
+      return h * 60 + (parseInt(mm, 10) || 0);
+    };
+    return { from: to24(m[1], m[2], m[3]), to: to24(m[4], m[5], m[6]) };
+  }
+
+  // HDB: free parking applies Sun & PH within the carpark's stated window.
+  function isHdbFreeNow(freeParkingStr) {
+    if (!freeParkingStr || /^NO$/i.test(freeParkingStr.trim())) return false;
+    const t = sgNow();
+    if (t.dow !== 'Sun' && !isPublicHoliday(t.ymd)) return false;
+    const w = parseFreeWindow(freeParkingStr);
+    if (!w) return false;
+    return w.from <= w.to
+      ? t.mins >= w.from && t.mins <= w.to
+      : t.mins >= w.from || t.mins <= w.to;   // window crossing midnight
+  }
+
+  // Pull a glanceable "$X.XX/hr" or "$X.XX/30min" from a free-text rate string.
+  function headlineRate(str) {
+    if (!str) return null;
+    const money = str.match(/\$\s?\d+(?:\.\d{1,2})?/);
+    if (!money) return null;
+    const amt = money[0].replace(/\s/g, '');
+    if (/30\s?min|½\s?hr|1\/2\s?hr|30\s?mins/i.test(str)) return `${amt}/30min`;
+    if (/15\s?min/i.test(str)) return `${amt}/15min`;
+    if (/per\s?hr|1st\s?hr|\/\s?hr|per hour|1st hour/i.test(str)) return `${amt}/hr`;
+    if (/per\s?entry/i.test(str)) return `${amt}/entry`;
+    return amt;
+  }
+
+  function titleCaseShort(s) {
+    return s ? s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+  }
+
+  // Build a unified rates descriptor for a carpark, or null if no data.
+  // { headline, freeNow, warn, lines:[{k,v,free}], note }
+  function resolveRates(c) {
+    // --- HDB: standardised policy + per-carpark metadata ---
+    if (c.agency === 'HDB') {
+      const m = state.carparkMeta.hdb[c.id];
+      if (!m) return null;
+      const freeNow = isHdbFreeNow(m.freeParking);
+      const hasFree = m.freeParking && !/^NO$/i.test(m.freeParking.trim());
+      const w = hasFree ? parseFreeWindow(m.freeParking) : null;
+      const fmt = (mins) => {
+        let h = Math.floor(mins / 60), mm = mins % 60;
+        const ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return `${h}${mm ? '.' + String(mm).padStart(2, '0') : ''}${ap}`;
+      };
+      const sunVal = w
+        ? `Free ${fmt(w.from)}–${fmt(w.to)}`
+        : '$0.60 / 30 min';
+      const hours = !m.shortTerm || /^NO$/i.test(m.shortTerm)
+        ? 'No short-term parking'
+        : titleCaseShort(m.shortTerm);
+      const lines = [
+        { k: 'Weekdays', v: '$0.60 / 30 min (car) · $1.20 / 30 min (heavy)' },
+        { k: 'Saturday', v: '$0.60 / 30 min' },
+        { k: 'Sun & PH', v: sunVal, free: !!w },
+        { k: 'Night', v: /^YES$/i.test(m.nightParking) ? 'Yes' : 'No' },
+      ];
+      if (m.gantryHeight && parseFloat(m.gantryHeight) > 0)
+        lines.push({ k: 'Gantry', v: `${m.gantryHeight}m` });
+      lines.push({ k: 'Hours', v: hours });
+      if (m.parkingSystem) lines.push({ k: 'System', v: titleCaseShort(m.parkingSystem) });
+      return {
+        headline: '$0.60/30min',
+        subNote: hasFree ? 'Free Sun & PH' : '',
+        freeNow, warn: false, lines,
+        note: 'HDB short-term parking · 10-min grace period.',
+      };
+    }
+
+    // --- URA: free-text rate strings, displayed verbatim ---
+    if (c.uraRates) {
+      const r = c.uraRates;
+      if (!r.weekday && !r.saturday && !r.sunPH) return null;
+      const lines = [];
+      if (r.weekday)  lines.push({ k: 'Weekdays', v: r.weekday });
+      if (r.saturday) lines.push({ k: 'Saturday', v: r.saturday });
+      if (r.sunPH)    lines.push({ k: 'Sun & PH', v: r.sunPH });
+      if (r.startTime && r.endTime)
+        lines.push({ k: 'Hours', v: `${r.startTime}–${r.endTime}` });
+      if (r.parkingSystem) lines.push({ k: 'System', v: titleCaseShort(r.parkingSystem) });
+      return {
+        headline: headlineRate(r.weekday) || 'See rates',
+        subNote: '', freeNow: false, warn: false, lines, note: '',
+      };
+    }
+
+    // --- Private mall seed (LTA CSV, 2018 — unverified) ---
+    if (c.isPrivate && (c.weekdayRate || c.saturdayRate || c.sunPHRate)) {
+      const lines = [];
+      if (c.weekdayRate)  lines.push({ k: 'Weekdays', v: c.weekdayRate });
+      if (c.saturdayRate) lines.push({ k: 'Saturday', v: c.saturdayRate });
+      if (c.sunPHRate)    lines.push({ k: 'Sun & PH', v: c.sunPHRate });
+      const unverified = c.ratesVerified === false;
+      return {
+        headline: headlineRate(c.weekdayRate) || 'See rates',
+        subNote: '', freeNow: false, warn: unverified, lines,
+        note: unverified
+          ? `Rates from ${c.ratesLastChecked || '2018'} — may have changed. Verify at the carpark.`
+          : '',
+      };
+    }
+
+    return null;
+  }
+
   // ---------- aggregation (car lots only) ----------
   function aggregate(records) {
     const groups = new Map();
@@ -1285,6 +1493,7 @@
         lng: coords.lng,
         lots: parseInt(r.AvailableLots, 10) || 0,
         total: parseInt(r.TotalLots, 10) || 0,
+        uraRates: r.Rates || null,
       });
     }
     return Array.from(groups.values());
@@ -1306,6 +1515,11 @@
       lots: null,    // no live data
       total: 0,
       isPrivate: true,
+      weekdayRate: p.weekdayRate || '',
+      saturdayRate: p.saturdayRate || '',
+      sunPHRate: p.sunPHRate || '',
+      ratesVerified: p.ratesVerified,
+      ratesLastChecked: p.ratesLastChecked || '',
     }));
 
     const all = [...groups, ...privItems];
@@ -1338,24 +1552,37 @@
     card.className = 'card';
     card.dataset.id = c.id;
     card.innerHTML = `
-      <div class="card-info">
-        <div class="card-name"></div>
-        <div class="card-meta">
-          <span class="dist"></span>
-          <span class="meta-dot"></span>
-          <span class="agency-badge"></span>
+      <div class="card-top">
+        <div class="card-info">
+          <div class="card-name"></div>
+          <div class="card-meta">
+            <span class="dist"></span>
+            <span class="meta-dot"></span>
+            <span class="agency-badge"></span>
+          </div>
+        </div>
+        <div class="card-lots">
+          <div class="status-dot"></div>
+          <div class="lots-num"></div>
+          <div class="lots-label">lots</div>
         </div>
       </div>
-      <div class="card-lots">
-        <div class="status-dot"></div>
-        <div class="lots-num"></div>
-        <div class="lots-label">lots</div>
-      </div>
+      <div class="card-rates" hidden></div>
       <div class="card-bar"><div class="card-bar-fill"></div></div>
     `;
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      // Taps inside the rates section toggle it — never navigate.
+      if (e.target.closest('.card-rates')) return;
       const url = `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}&travelmode=driving`;
       window.open(url, '_blank', 'noopener');
+    });
+    const ratesEl = card.querySelector('.card-rates');
+    ratesEl.addEventListener('click', (e) => {
+      if (!e.target.closest('.rates-row')) return;
+      e.stopPropagation();
+      const open = ratesEl.classList.toggle('open');
+      if (open) state.ratesExpanded.add(c.id);
+      else state.ratesExpanded.delete(c.id);
     });
     return card;
   }
@@ -1387,6 +1614,41 @@
       const pct = (c.lots != null && c.total > 0) ? Math.round((c.lots / c.total) * 100) : 0;
       barFill.style.width = `${pct}%`;
       barFill.className = `card-bar-fill ${color}`;
+    }
+
+    // ---- Rates section (Workstream 5) ----
+    const ratesEl = card.querySelector('.card-rates');
+    if (ratesEl) {
+      const r = resolveRates(c);
+      if (!r) {
+        ratesEl.hidden = true;
+        ratesEl.innerHTML = '';
+        ratesEl.classList.remove('open');
+      } else {
+        ratesEl.hidden = false;
+        const isOpen = state.ratesExpanded.has(c.id);
+        ratesEl.classList.toggle('open', isOpen);
+        const freeBadge = r.freeNow
+          ? `<span class="rates-free">${FREE_ICON}Free now</span>`
+          : '';
+        const warnBadge = r.warn
+          ? `<span class="rates-warn" title="Rates from ${escapeHtml(c.ratesLastChecked || '2018')} — may have changed. Verify at the carpark.">${WARN_ICON}</span>`
+          : '';
+        const sub = r.subNote && !r.freeNow
+          ? `<span class="rates-sep"></span><span>${escapeHtml(r.subNote)}</span>`
+          : '';
+        const rows = r.lines.map((ln) =>
+          `<div class="rates-line"><span class="rk">${escapeHtml(ln.k)}</span><span class="rv${ln.free ? ' free-hl' : ''}">${escapeHtml(ln.v)}</span></div>`
+        ).join('');
+        const note = r.note ? `<div class="rates-note">${escapeHtml(r.note)}</div>` : '';
+        ratesEl.innerHTML = `
+          <div class="rates-row">
+            <span class="rates-money">${escapeHtml(r.headline)}</span>
+            ${freeBadge}${warnBadge}${sub}
+            <span class="rates-chev">${CHEV_ICON}</span>
+          </div>
+          <div class="rates-detail">${rows}${note}</div>`;
+      }
     }
   }
 
@@ -1952,6 +2214,23 @@
     const count = countNearbyEV();
     els.evCount.style.display = count ? '' : 'none';
     els.evCount.textContent = count;
+  }
+
+  // ---------- carpark metadata: HDB info + public holidays ----------
+  async function loadCarparkMeta() {
+    try {
+      const res = await fetch('/api/carpark-meta');
+      if (!res.ok) return;
+      const j = await res.json();
+      state.carparkMeta = {
+        hdb: j.hdb || {},
+        publicHolidays: j.publicHolidays || [],
+      };
+      // Re-render so rate rows appear once metadata arrives.
+      if (state.view === 'parking' && state.position) render();
+    } catch (err) {
+      console.warn('[carpark-meta] failed to load:', err.message);
+    }
   }
 
   // ---------- private carpark seed ----------
@@ -2686,8 +2965,9 @@
     if (['car', 'motorcycle', 'heavy'].includes(v)) state.tripVehicle = v;
   } catch {}
 
-  // Pre-load static private mall data (non-blocking)
+  // Pre-load static private mall data + carpark metadata (non-blocking)
   loadPrivateCarparks();
+  loadCarparkMeta();
 
   const isLikelyMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   if (!isLikelyMobile && !window.isSecureContext) {
