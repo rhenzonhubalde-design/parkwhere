@@ -536,10 +536,6 @@ app.get('/api/directions', async (req, res) => {
     return res.status(400).json({ error: 'Missing coordinates: need olat, olng, dlat, dlng' });
   }
 
-  const mapsBase =
-    `https://www.google.com/maps/dir/?api=1` +
-    `&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=driving`;
-
   async function callRoutes(avoidTolls) {
     const body = {
       origin:      { location: { latLng: { latitude:  parseFloat(olat), longitude: parseFloat(olng) } } },
@@ -557,7 +553,7 @@ app.get('/api/directions', async (req, res) => {
       headers: {
         'Content-Type':     'application/json',
         'X-Goog-Api-Key':   GOOGLE_MAPS_API_KEY,
-        'X-Goog-FieldMask': 'routes.description,routes.duration,routes.distanceMeters,routes.routeLabels,routes.legs.steps.navigationInstruction',
+        'X-Goog-FieldMask': 'routes.description,routes.duration,routes.distanceMeters,routes.routeLabels,routes.legs.steps.navigationInstruction,routes.polyline.encodedPolyline',
       },
       body: JSON.stringify(body),
     });
@@ -568,7 +564,42 @@ app.get('/api/directions', async (req, res) => {
     return r.json();
   }
 
-  function mapRoute(route, label) {
+  // Standard Google encoded-polyline decoder → [[lat,lng],...]
+  function decodePolyline(str) {
+    let idx = 0, lat = 0, lng = 0; const out = [];
+    while (idx < str.length) {
+      let b, shift = 0, result = 0;
+      do { b = str.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { b = str.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+      out.push([lat / 1e5, lng / 1e5]);
+    }
+    return out;
+  }
+
+  // Build a Maps URL that follows THIS specific route by forcing it through
+  // two waypoints sampled from the route's own polyline (Google's dir URL
+  // has no route-index param, so via-points are the reliable way).
+  function buildMapsUrl(route, avoidTolls) {
+    let url = `https://www.google.com/maps/dir/?api=1` +
+              `&origin=${olat},${olng}&destination=${dlat},${dlng}&travelmode=driving`;
+    const enc = route.polyline && route.polyline.encodedPolyline;
+    if (enc) {
+      const pts = decodePolyline(enc);
+      if (pts.length > 8) {
+        const a = pts[Math.floor(pts.length * 0.33)];
+        const b = pts[Math.floor(pts.length * 0.66)];
+        url += `&waypoints=${a[0].toFixed(5)},${a[1].toFixed(5)}` +
+               `|${b[0].toFixed(5)},${b[1].toFixed(5)}`;
+      }
+    }
+    if (avoidTolls) url += `&avoid=tolls`;
+    return url;
+  }
+
+  function mapRoute(route, label, avoidTolls = false) {
     const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
     const expressways = extractExpressways(route.description, steps);
     const erp = estimateERP(expressways, vehicle);
@@ -581,7 +612,7 @@ app.get('/api/directions', async (req, res) => {
       expressways,
       erpLikely:     expressways.length > 0,
       erp,
-      mapsUrl:       mapsBase,
+      mapsUrl:       buildMapsUrl(route, avoidTolls),
     };
   }
   const erpHigh = (rt) => (rt.erp && rt.erp.charging ? rt.erp.estHigh : 0);
@@ -612,7 +643,7 @@ app.get('/api/directions', async (req, res) => {
     if (cheapestHi > 0) {
       try {
         const ja = await callRoutes(true);
-        const alt = ja.routes && ja.routes[0] ? mapRoute(ja.routes[0], 'Cheaper') : null;
+        const alt = ja.routes && ja.routes[0] ? mapRoute(ja.routes[0], 'Cheaper', true) : null;
         if (alt) {
           const altKey = `${(alt.summary || '').toLowerCase()}|${alt.durationValue}`;
           if (!seen.has(altKey) && erpHigh(alt) < cheapestHi) {
