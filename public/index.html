@@ -714,16 +714,16 @@
   }
   .trip-dest-input::placeholder { color: var(--text-faint); }
   .trip-actions {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; flex-direction: column;
     gap: 10px; margin-top: 14px;
     padding-top: 14px; border-top: 1px solid var(--border);
   }
   .vehicle-tabs { display: flex; gap: 5px; }
   .vehicle-btn {
-    padding: 7px 14px; border-radius: 8px; font-size: 12.5px;
+    flex: 1; padding: 8px 6px; border-radius: 8px; font-size: 12.5px;
     font-weight: 600; color: var(--text-muted); background: var(--surface-2);
     transition: background 0.15s, color 0.15s;
-    border: 1px solid transparent;
+    border: 1px solid transparent; white-space: nowrap;
   }
   .vehicle-btn.active {
     background: var(--accent-soft); color: var(--accent);
@@ -731,9 +731,9 @@
   }
   .vehicle-btn:hover:not(.active) { background: var(--surface-3); color: var(--text); }
   .get-dir-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; background: var(--accent-strong); color: white;
-    border-radius: 10px; font-size: 13.5px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 11px 18px; background: var(--accent-strong); color: white;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
     transition: background 0.15s, transform 0.1s, opacity 0.15s;
   }
   .get-dir-btn svg { width: 14px; height: 14px; stroke-width: 2.5; }
@@ -777,14 +777,15 @@
   }
   .nav-btn svg { width: 12px; height: 12px; stroke-width: 2.5; }
   .nav-btn:hover { background: var(--accent); color: white; }
-  .route-stats { display: flex; align-items: baseline; gap: 12px; }
+  .route-stats { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .route-time {
     font-size: 28px; font-weight: 700; color: var(--text);
     letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
   }
   .route-dist { font-size: 13.5px; color: var(--text-muted); font-weight: 500; }
   .route-stats-right {
-    margin-left: auto; display: flex; align-items: center; gap: 10px;
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
   }
   .route-save {
     font-size: 12px; font-weight: 700;
