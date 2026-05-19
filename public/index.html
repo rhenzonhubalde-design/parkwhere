@@ -783,10 +783,26 @@
     letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
   }
   .route-dist { font-size: 13.5px; color: var(--text-muted); font-weight: 500; }
+  .route-stats-right {
+    margin-left: auto; display: flex; align-items: center; gap: 10px;
+  }
   .route-save {
-    margin-left: auto; font-size: 12px; font-weight: 700;
+    font-size: 12px; font-weight: 700;
     color: var(--green); background: var(--green-soft);
     padding: 3px 9px; border-radius: 999px;
+  }
+  .route-erp-total {
+    display: flex; flex-direction: column; align-items: flex-end;
+    line-height: 1.05;
+  }
+  .route-erp-total .ret-amt {
+    font-size: 21px; font-weight: 800; color: var(--amber);
+    letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+  }
+  .route-erp-total.free .ret-amt { color: var(--green); }
+  .route-erp-total .ret-lbl {
+    font-size: 9.5px; font-weight: 700; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.07em; margin-top: 1px;
   }
   .route-erp {
     display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;
@@ -1766,7 +1782,21 @@
       const summary = route.summary ? `via ${escapeHtml(route.summary)}` : 'Direct route';
       const myHi = route.erp?.charging ? route.erp.estHigh : 0;
       const saves = idx > 0 && fastHi > 0 && myHi < fastHi
-        ? `<span class="route-save">Saves up to $${(fastHi - myHi).toFixed(2)}</span>` : '';
+        ? `<span class="route-save">−$${(fastHi - myHi).toFixed(2)}</span>` : '';
+      const e = route.erp;
+      let erpAmt, erpCls;
+      if (!e || !e.charging) { erpAmt = '$0'; erpCls = 'free'; }
+      else {
+        erpAmt = e.estLow === e.estHigh
+          ? `$${e.estLow.toFixed(2)}`
+          : `$${e.estLow.toFixed(0)}–$${e.estHigh.toFixed(0)}`;
+        erpCls = '';
+      }
+      const erpHeadline =
+        `<span class="route-erp-total ${erpCls}">
+           <span class="ret-amt">${erpAmt}</span>
+           <span class="ret-lbl">${erpCls === 'free' ? 'no ERP' : 'est. ERP'}</span>
+         </span>`;
       return `
         <div class="route-card" style="animation-delay:${idx * 60}ms">
           <div class="route-header">
@@ -1779,7 +1809,7 @@
           <div class="route-stats">
             <span class="route-time">${escapeHtml(route.duration)}</span>
             <span class="route-dist">${escapeHtml(route.distance)}</span>
-            ${saves}
+            <span class="route-stats-right">${saves}${erpHeadline}</span>
           </div>
           ${erpBlock(route.erp)}
         </div>`;
