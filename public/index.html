@@ -734,6 +734,15 @@
     flex: 1; color: var(--text); font-weight: 500; line-height: 1.45;
   }
   .rates-line .rv.free-hl { color: var(--green); font-weight: 600; }
+  .rates-line.is-today .rk { color: var(--accent); }
+  .rates-line.is-today .rv { color: var(--text); font-weight: 600; }
+  .rates-today {
+    display: inline-block; margin-left: 8px; vertical-align: middle;
+    padding: 1px 7px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
   .rates-note {
     margin-top: 8px; font-size: 11px; font-style: italic;
     color: var(--text-faint); line-height: 1.4;
@@ -1399,9 +1408,43 @@
     return s ? s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : '';
   }
 
+  // Which tariff applies *today* in Singapore: 'weekday' | 'sat' | 'sunph'.
+  function todayType() {
+    const t = sgNow();
+    if (t.dow === 'Sun' || isPublicHoliday(t.ymd)) return 'sunph';
+    if (t.dow === 'Sat') return 'sat';
+    return 'weekday';
+  }
+  function todayLabel() {
+    const t = sgNow();
+    if (isPublicHoliday(t.ymd)) return 'Public holiday';
+    if (t.dow === 'Sun') return 'Sunday';
+    if (t.dow === 'Sat') return 'Saturday';
+    return 'Weekday';
+  }
+  // Resolve "Same as Saturday/weekday" cross-references in free-text rates.
+  function resolveRef(str, weekday, sat) {
+    let s = (str || '').trim();
+    for (let i = 0; i < 4 && s; i++) {
+      if (/^same as weekday/i.test(s)) s = (weekday || '').trim();
+      else if (/^same as sat/i.test(s)) s = (sat || '').trim();
+      else break;
+    }
+    return s;
+  }
+  // The rate string that actually applies today (with refs resolved).
+  function effectiveRateStr(weekday, sat, sunph, tt) {
+    if (tt === 'weekday') return weekday || '';
+    if (tt === 'sat') return resolveRef(sat, weekday, sat) || weekday || '';
+    return resolveRef(sunph, weekday, sat)
+        || resolveRef(sat, weekday, sat) || weekday || '';
+  }
+
   // Build a unified rates descriptor for a carpark, or null if no data.
-  // { headline, freeNow, warn, lines:[{k,v,free}], note }
+  // { headline, dayLabel, freeNow, warn, lines:[{k,v,free}], note }
   function resolveRates(c) {
+    const tt = todayType();
+    const dayLabel = todayLabel();
     // --- HDB: standardised policy + per-carpark metadata ---
     if (c.agency === 'HDB') {
       const m = state.carparkMeta.hdb[c.id];
@@ -1422,18 +1465,20 @@
         ? 'No short-term parking'
         : titleCaseShort(m.shortTerm);
       const lines = [
-        { k: 'Weekdays', v: '$0.60 / 30 min (car) · $1.20 / 30 min (heavy)' },
-        { k: 'Saturday', v: '$0.60 / 30 min' },
-        { k: 'Sun & PH', v: sunVal, free: !!w },
+        { k: 'Weekdays', v: '$0.60 / 30 min (car) · $1.20 / 30 min (heavy)', today: tt === 'weekday' },
+        { k: 'Saturday', v: '$0.60 / 30 min', today: tt === 'sat' },
+        { k: 'Sun & PH', v: sunVal, free: !!w, today: tt === 'sunph' },
         { k: 'Night', v: /^YES$/i.test(m.nightParking) ? 'Yes' : 'No' },
       ];
       if (m.gantryHeight && parseFloat(m.gantryHeight) > 0)
         lines.push({ k: 'Gantry', v: `${m.gantryHeight}m` });
       lines.push({ k: 'Hours', v: hours });
       if (m.parkingSystem) lines.push({ k: 'System', v: titleCaseShort(m.parkingSystem) });
+      // Headline = the rate that applies right now.
+      const headline = (tt === 'sunph' && freeNow) ? 'Free now' : '$0.60/30min';
       return {
-        headline: '$0.60/30min',
-        subNote: hasFree ? 'Free Sun & PH' : '',
+        headline,
+        dayLabel,
         freeNow, warn: false, lines,
         note: 'HDB short-term parking · 10-min grace period.',
       };
@@ -1444,28 +1489,30 @@
       const r = c.uraRates;
       if (!r.weekday && !r.saturday && !r.sunPH) return null;
       const lines = [];
-      if (r.weekday)  lines.push({ k: 'Weekdays', v: r.weekday });
-      if (r.saturday) lines.push({ k: 'Saturday', v: r.saturday });
-      if (r.sunPH)    lines.push({ k: 'Sun & PH', v: r.sunPH });
+      if (r.weekday)  lines.push({ k: 'Weekdays', v: r.weekday, today: tt === 'weekday' });
+      if (r.saturday) lines.push({ k: 'Saturday', v: r.saturday, today: tt === 'sat' });
+      if (r.sunPH)    lines.push({ k: 'Sun & PH', v: r.sunPH, today: tt === 'sunph' });
       if (r.startTime && r.endTime)
         lines.push({ k: 'Hours', v: `${r.startTime}–${r.endTime}` });
       if (r.parkingSystem) lines.push({ k: 'System', v: titleCaseShort(r.parkingSystem) });
+      const eff = effectiveRateStr(r.weekday, r.saturday, r.sunPH, tt);
       return {
-        headline: headlineRate(r.weekday) || 'See rates',
-        subNote: '', freeNow: false, warn: false, lines, note: '',
+        headline: headlineRate(eff) || 'See rates',
+        dayLabel, freeNow: false, warn: false, lines, note: '',
       };
     }
 
     // --- Private mall seed (LTA CSV, 2018 — unverified) ---
     if (c.isPrivate && (c.weekdayRate || c.saturdayRate || c.sunPHRate)) {
       const lines = [];
-      if (c.weekdayRate)  lines.push({ k: 'Weekdays', v: c.weekdayRate });
-      if (c.saturdayRate) lines.push({ k: 'Saturday', v: c.saturdayRate });
-      if (c.sunPHRate)    lines.push({ k: 'Sun & PH', v: c.sunPHRate });
+      if (c.weekdayRate)  lines.push({ k: 'Weekdays', v: c.weekdayRate, today: tt === 'weekday' });
+      if (c.saturdayRate) lines.push({ k: 'Saturday', v: c.saturdayRate, today: tt === 'sat' });
+      if (c.sunPHRate)    lines.push({ k: 'Sun & PH', v: c.sunPHRate, today: tt === 'sunph' });
       const unverified = c.ratesVerified === false;
+      const eff = effectiveRateStr(c.weekdayRate, c.saturdayRate, c.sunPHRate, tt);
       return {
-        headline: headlineRate(c.weekdayRate) || 'See rates',
-        subNote: '', freeNow: false, warn: unverified, lines,
+        headline: headlineRate(eff) || 'See rates',
+        dayLabel, freeNow: false, warn: unverified, lines,
         note: unverified
           ? `Rates from ${c.ratesLastChecked || '2018'} — may have changed. Verify at the carpark.`
           : '',
@@ -1634,12 +1681,16 @@
         const warnBadge = r.warn
           ? `<span class="rates-warn" title="Rates from ${escapeHtml(c.ratesLastChecked || '2018')} — may have changed. Verify at the carpark.">${WARN_ICON}</span>`
           : '';
-        const sub = r.subNote && !r.freeNow
-          ? `<span class="rates-sep"></span><span>${escapeHtml(r.subNote)}</span>`
+        // Show which day's tariff this is — unless the "Free now" badge
+        // already says it.
+        const sub = (r.dayLabel && !r.freeNow)
+          ? `<span class="rates-sep"></span><span>${escapeHtml(r.dayLabel)} rate</span>`
           : '';
-        const rows = r.lines.map((ln) =>
-          `<div class="rates-line"><span class="rk">${escapeHtml(ln.k)}</span><span class="rv${ln.free ? ' free-hl' : ''}">${escapeHtml(ln.v)}</span></div>`
-        ).join('');
+        const rows = r.lines.map((ln) => {
+          const cls = (ln.free ? ' free-hl' : '') ;
+          const todayTag = ln.today ? '<span class="rates-today">Today</span>' : '';
+          return `<div class="rates-line${ln.today ? ' is-today' : ''}"><span class="rk">${escapeHtml(ln.k)}</span><span class="rv${cls}">${escapeHtml(ln.v)}${todayTag}</span></div>`;
+        }).join('');
         const note = r.note ? `<div class="rates-note">${escapeHtml(r.note)}</div>` : '';
         ratesEl.innerHTML = `
           <div class="rates-row">
@@ -1755,6 +1806,9 @@
       render();
       tickUpdated();
       if (!silent) showToast('Updated');
+      // Lazy-retry carpark metadata if the startup fetch missed (e.g. a
+      // transient upstream rate-limit) — rate rows fill in once it lands.
+      if (!Object.keys(state.carparkMeta.hdb).length) loadCarparkMeta();
     } catch (err) {
       console.error('loadCarparks failed:', err);
       if (state.carparks.length === 0) {
