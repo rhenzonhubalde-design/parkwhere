@@ -362,6 +362,27 @@
     padding: 16px;
   }
   .suggest-item.empty:hover { background: transparent; }
+  .suggest-special {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--accent); font-weight: 600;
+  }
+  .suggest-special .sg-ic {
+    display: inline-flex; width: 16px; justify-content: center;
+  }
+  .suggest-sep {
+    padding: 8px 12px 4px; font-size: 10.5px; font-weight: 700;
+    color: var(--text-faint); text-transform: uppercase;
+    letter-spacing: 0.06em; cursor: default;
+  }
+  .suggest-sep:hover { background: transparent; }
+  .pill-clear {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; margin-left: 2px; border-radius: 50%;
+    background: var(--surface-3); color: var(--text-muted);
+    cursor: pointer; flex-shrink: 0;
+  }
+  .pill-clear:hover { background: var(--red-soft); color: var(--red); }
+  .pill-clear svg { width: 9px; height: 9px; color: inherit; stroke-width: 3; }
 
   /* ============================================================
      Location pill
@@ -1321,6 +1342,9 @@
       <circle cx="12" cy="10" r="3"></circle>
     </svg>
     <span id="locationText">Near you</span>
+    <button id="pillClear" class="pill-clear" aria-label="Clear location, use GPS" title="Use my location" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
   </div>
 
   <div id="banner"></div>
@@ -1394,6 +1418,7 @@
     countdownFill: $('countdownFill'),
     locationPill: $('locationPill'),
     locationText: $('locationText'),
+    pillClear: $('pillClear'),
     locationBtn: $('locationBtn'),
     refreshBtn: $('refreshBtn'),
     themeToggle: $('themeToggle'),
@@ -3032,28 +3057,57 @@
     return res.json();
   }
 
+  // ---------- recent locations (WS7) ----------
+  const RECENTS_KEY = 'parkwhere_recent_locations';
+  function loadRecents() {
+    try {
+      const a = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]');
+      state.recentLocations = Array.isArray(a)
+        ? a.filter((r) => r && r.label && isFinite(r.lat) && isFinite(r.lng)).slice(0, 5)
+        : [];
+    } catch { state.recentLocations = []; }
+  }
+  function pushRecent(loc) {
+    if (!loc || !loc.label || !isFinite(loc.lat) || !isFinite(loc.lng)) return;
+    const key = loc.label.trim().toLowerCase();
+    const next = [{ label: loc.label, lat: loc.lat, lng: loc.lng },
+      ...state.recentLocations.filter((r) => r.label.trim().toLowerCase() !== key)]
+      .slice(0, 5);
+    state.recentLocations = next;
+    try { localStorage.setItem(RECENTS_KEY, JSON.stringify(next)); } catch {}
+  }
+
   // ---------- suggestions ----------
+  const GPS_PIN = `<span class="sg-ic">📍</span>`;
   function renderSuggestions(results, query) {
     activeSuggestIdx = -1;
-    if (!results || results.length === 0) {
-      if (query && query.length >= 2) {
-        els.suggestList.innerHTML = `<li class="suggest-item empty">No matches for "${escapeHtml(query)}"</li>`;
-        els.suggestList.classList.add('open');
-        els.searchBar.setAttribute('aria-expanded', 'true');
+    const hasQuery = query && query.length >= 2;
+    const parts = [
+      // Always offered, regardless of what was typed (WS7 §7.3)
+      `<li class="suggest-item suggest-special" role="option" data-action="gps">${GPS_PIN}Use current location</li>`,
+    ];
+    if (hasQuery) {
+      if (results && results.length) {
+        state.suggestions = results;
+        parts.push('<li class="suggest-sep">Results</li>');
+        results.forEach((r, i) => parts.push(
+          `<li class="suggest-item" role="option" data-idx="${i}">${escapeHtml(r.label)}` +
+          `${r.address && r.address !== r.label ? `<span class="sub">${escapeHtml(r.address)}</span>` : ''}</li>`));
       } else {
-        closeSuggestions();
+        state.suggestions = [];
+        parts.push(`<li class="suggest-item empty">No matches for "${escapeHtml(query)}"</li>`);
       }
-      return;
+    } else {
+      state.suggestions = [];
+      if (state.recentLocations.length) {
+        parts.push('<li class="suggest-sep">Recent</li>');
+        state.recentLocations.forEach((r, i) => parts.push(
+          `<li class="suggest-item" role="option" data-recent="${i}">${escapeHtml(r.label)}</li>`));
+      }
     }
-    els.suggestList.innerHTML = results.map((r, i) => `
-      <li class="suggest-item" role="option" data-idx="${i}">
-        ${escapeHtml(r.label)}
-        ${r.address && r.address !== r.label ? `<span class="sub">${escapeHtml(r.address)}</span>` : ''}
-      </li>
-    `).join('');
+    els.suggestList.innerHTML = parts.join('');
     els.suggestList.classList.add('open');
     els.searchBar.setAttribute('aria-expanded', 'true');
-    state.suggestions = results;
   }
 
   function closeSuggestions() {
@@ -3065,7 +3119,7 @@
   }
 
   function highlightSuggestion(idx) {
-    const items = els.suggestList.querySelectorAll('.suggest-item:not(.empty)');
+    const items = els.suggestList.querySelectorAll('.suggest-item[data-idx]');
     items.forEach((el, i) => el.classList.toggle('active', i === idx));
     if (idx >= 0 && items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
     activeSuggestIdx = idx;
@@ -3087,8 +3141,10 @@
     const q = els.searchInput.value.trim();
     els.clearBtn.classList.toggle('show', q.length > 0);
     if (suggestTimer) clearTimeout(suggestTimer);
-    if (q.length < 2) { closeSuggestions(); return; }
-    suggestTimer = setTimeout(() => fetchSuggestions(q), 220);
+    // Empty/short → still show "Use current location" + recents (WS7)
+    if (q.length < 2) { renderSuggestions([], q); return; }
+    // 6-digit Singapore postal code → geocode directly (OneMap handles it)
+    suggestTimer = setTimeout(() => fetchSuggestions(q), /^\d{6}$/.test(q) ? 0 : 220);
   }
 
   async function pickSuggestion(result) {
@@ -3097,6 +3153,8 @@
     els.searchInput.blur();
     state.position = { lat: result.lat, lng: result.lng };
     state.locationLabel = result.label;
+    pushRecent(result);                       // WS7: remember last 5
+    setPillClear(true);                       // manual location → show ✕
     els.locationBtn.classList.remove('active-loc');
     state.cardEls.clear();
 
@@ -3173,8 +3231,13 @@
   function clearSearch() {
     els.searchInput.value = '';
     els.clearBtn.classList.remove('show');
-    closeSuggestions();
+    renderSuggestions([], '');     // keep "Use current location" + recents visible
     els.searchInput.focus();
+  }
+
+  // Show/hide the ✕ on the location pill (only when a manual location is set)
+  function setPillClear(on) {
+    if (els.pillClear) els.pillClear.style.display = on ? '' : 'none';
   }
 
   async function reCenterOnUser() {
@@ -3191,6 +3254,7 @@
         els.locationBtn.classList.add('active-loc');
         els.searchInput.value = '';
         els.clearBtn.classList.remove('show');
+        setPillClear(false);                 // back on GPS — hide ✕
         state.cardEls.clear();
         if (state.view === 'trip') { renderTrip(); startAutoRefresh(); return; }
         showLoading(state.view === 'traffic' ? 'Finding incidents near you…' : 'Finding carparks near you…');
@@ -3299,12 +3363,11 @@
   els.searchBar.addEventListener('submit', handleSearchSubmit);
   els.searchInput.addEventListener('input', onSearchInput);
   els.searchInput.addEventListener('focus', () => {
-    if (els.searchInput.value.trim().length >= 2 && state.suggestions?.length) {
-      els.suggestList.classList.add('open');
-    }
+    // Always surface the dropdown (Use current location + recents/results)
+    renderSuggestions(state.suggestions || [], els.searchInput.value.trim());
   });
   els.searchInput.addEventListener('keydown', (e) => {
-    const items = els.suggestList.querySelectorAll('.suggest-item:not(.empty)');
+    const items = els.suggestList.querySelectorAll('.suggest-item[data-idx]');
     if (e.key === 'ArrowDown') {
       if (items.length === 0) return;
       e.preventDefault();
@@ -3318,13 +3381,28 @@
     }
   });
   els.suggestList.addEventListener('click', (e) => {
-    const item = e.target.closest('.suggest-item:not(.empty)');
+    const item = e.target.closest('.suggest-item:not(.empty):not(.suggest-sep)');
     if (!item) return;
-    const idx = parseInt(item.dataset.idx, 10);
-    const result = state.suggestions[idx];
+    if (item.dataset.action === 'gps') {
+      els.searchInput.value = '';
+      els.clearBtn.classList.remove('show');
+      closeSuggestions();
+      reCenterOnUser();
+      return;
+    }
+    if (item.dataset.recent != null) {
+      const r = state.recentLocations[parseInt(item.dataset.recent, 10)];
+      if (r) pickSuggestion(r);
+      return;
+    }
+    const result = state.suggestions[parseInt(item.dataset.idx, 10)];
     if (result) pickSuggestion(result);
   });
   els.clearBtn.addEventListener('click', clearSearch);
+  if (els.pillClear) els.pillClear.addEventListener('click', (e) => {
+    e.stopPropagation();
+    reCenterOnUser();              // revert to GPS / "Near you"
+  });
   els.content.addEventListener('click', (e) => {
     // ERP sub-tab switch (Route Planner / ERP Rates)
     const subBtn = e.target.closest('.subtab-btn[data-sub]');
@@ -3464,6 +3542,7 @@
   // Pre-load static private mall data + carpark metadata (non-blocking)
   loadPrivateCarparks();
   loadCarparkMeta();
+  loadRecents();   // WS7: restore last-5 recent locations (session-independent store)
 
   const isLikelyMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   if (!isLikelyMobile && !window.isSecureContext) {
