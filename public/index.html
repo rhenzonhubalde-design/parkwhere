@@ -760,6 +760,125 @@
   }
 
   /* ============================================================
+     ERP sub-tabs (Route Planner / ERP Rates)
+     ============================================================ */
+  .subtab-bar {
+    display: flex; gap: 6px; margin: 14px 0 2px; padding: 4px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: var(--shadow-card);
+  }
+  .subtab-btn {
+    flex: 1; padding: 9px 6px; font-size: 13px; font-weight: 600;
+    color: var(--text-muted); border-radius: 9px; background: transparent;
+    transition: color .15s, background .15s; letter-spacing: -0.01em;
+  }
+  .subtab-btn.active { color: var(--text); background: var(--surface-2); border: 1px solid var(--border-strong); }
+  .subtab-btn:hover:not(.active) { color: var(--text); }
+
+  /* ERP Rates view */
+  .erp-now {
+    margin: 14px 0 0; padding: 16px 16px 14px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+  }
+  .erp-now.free { background: var(--green-soft); border-color: color-mix(in srgb, var(--green) 24%, transparent); }
+  .erp-now-head {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    font-weight: 700; color: var(--text); margin-bottom: 2px;
+  }
+  .erp-now-head svg { width: 15px; height: 15px; stroke-width: 2; }
+  .erp-now.free .erp-now-head { color: var(--green); }
+  .erp-now-sub { font-size: 11.5px; color: var(--text-muted); font-weight: 500; margin-bottom: 10px; }
+  .erp-now-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 0;
+    border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .erp-now-row .enr-z { font-weight: 600; color: var(--text); flex: 1; min-width: 0; }
+  .erp-now-row .enr-z small { color: var(--text-muted); font-weight: 500; }
+  .erp-now-row .enr-amt {
+    font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .erp-rates-search {
+    margin: 14px 0 0; display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+  .erp-rates-search svg { width: 16px; height: 16px; stroke-width: 2; color: var(--text-faint); flex-shrink: 0; }
+  .erp-rates-search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: inherit; font-size: 14px; font-weight: 500;
+  }
+  .erp-rates-search input::placeholder { color: var(--text-faint); }
+  .xway-row {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    margin-top: 8px; padding: 14px 16px; text-align: left;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: var(--shadow-card);
+    transition: border-color .15s, transform .1s;
+  }
+  .xway-row:hover { border-color: var(--border-strong); }
+  .xway-row:active { transform: scale(0.995); }
+  .xway-abbr {
+    font-size: 15px; font-weight: 800; color: var(--accent);
+    letter-spacing: -0.02em; flex-shrink: 0; min-width: 42px;
+  }
+  .xway-info { flex: 1; min-width: 0; }
+  .xway-name { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .xway-meta { font-size: 11.5px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+  .xway-chev { color: var(--text-faint); flex-shrink: 0; }
+  .xway-chev svg { width: 16px; height: 16px; stroke-width: 2.5; }
+
+  .erp-back {
+    display: inline-flex; align-items: center; gap: 6px; margin: 14px 0 0;
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+  }
+  .erp-back svg { width: 15px; height: 15px; stroke-width: 2.5; }
+  .erp-back:hover { color: var(--text); }
+  .erp-rt-head { margin: 10px 0 0; font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+  .erp-rt-sub { font-size: 12.5px; color: var(--text-muted); font-weight: 500; margin-top: 3px; }
+  .erp-toggles { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+  .erp-toggle-group { display: flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: 9px; }
+  .erp-tg-btn {
+    padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 7px;
+    color: var(--text-muted); transition: background .15s, color .15s;
+  }
+  .erp-tg-btn.active { background: var(--accent-soft); color: var(--accent); }
+  .erp-zone {
+    margin: 16px 0 0; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow-card); overflow: hidden;
+  }
+  .erp-zone-h {
+    padding: 12px 16px; background: var(--surface-2);
+    font-size: 12px; font-weight: 700; color: var(--text);
+    letter-spacing: 0.01em; border-bottom: 1px solid var(--border);
+  }
+  .erp-zone-h small { display: block; color: var(--text-muted); font-weight: 500; margin-top: 2px; font-size: 11px; }
+  .erp-slot {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    font-size: 13.5px; border-top: 1px solid var(--border);
+  }
+  .erp-slot:first-child { border-top: none; }
+  .erp-slot .es-time { flex: 1; color: var(--text-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .erp-slot .es-amt { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .erp-slot.active {
+    background: var(--green-soft);
+    border-left: 3px solid var(--green); padding-left: 13px;
+  }
+  .erp-slot.active .es-time { color: var(--green); font-weight: 700; }
+  .erp-slot.active .es-amt { color: var(--green); }
+  .erp-slot .es-now {
+    font-size: 10px; font-weight: 700; color: var(--green);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .erp-free-msg {
+    margin: 16px 0 0; padding: 18px 16px; text-align: center;
+    background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent);
+    border-radius: 14px; color: var(--green); font-size: 13.5px; font-weight: 600;
+  }
+
+  /* ============================================================
      Trip tab — form
      ============================================================ */
   .trip-form {
@@ -1249,6 +1368,13 @@
     routes: [],
     erpMeta: null,
     tripInFlight: false,
+    tripSubView: 'planner',     // 'planner' | 'rates'  (WS6)
+    erpRates: null,             // erp-rates.json
+    erpZoneMap: null,           // erp-zone-map.json
+    erpDayType: null,           // 'weekday' | 'sat' | 'sunph' (auto, user-overridable)
+    erpXway: null,              // selected expressway abbr, or null = list
+    erpSearch: '',
+    recentLocations: [],        // WS7
     fetchedAt: 0,
     stale: false,
     refreshTimer: null,
@@ -2524,9 +2650,213 @@
     container.innerHTML = `<div class="list">${cards}</div>${noAlt}${meta}`;
   }
 
+  // ============================================================
+  //  ERP Rates table (Workstream 6)
+  // ============================================================
+  let erpDataPromise = null;
+  function loadErpData() {
+    if (state.erpRates && state.erpZoneMap) return Promise.resolve();
+    if (erpDataPromise) return erpDataPromise;
+    erpDataPromise = Promise.all([
+      fetch('/data/erp-rates.json').then((r) => r.json()),
+      fetch('/data/erp-zone-map.json').then((r) => r.json()),
+    ]).then(([rates, zmap]) => {
+      state.erpRates = rates;
+      state.erpZoneMap = zmap;
+    }).catch((e) => { console.warn('[erp] data load failed:', e.message); });
+    return erpDataPromise;
+  }
+
+  const ERP_DAY_LABEL = { weekday: 'Weekdays', sat: 'Saturday', sunph: 'Sunday / PH' };
+  // Reuse sgNow() + isPublicHoliday() from the rates module (WS5).
+  function erpToday() {
+    const t = sgNow();
+    if (t.dow === 'Sun' || isPublicHoliday(t.ymd)) return 'sunph';
+    if (t.dow === 'Sat') return 'sat';
+    return 'weekday';
+  }
+  function erpMult() {
+    const m = state.erpRates && state.erpRates.vehicleMultipliers;
+    return (m && m[state.tripVehicle]) || 1;
+  }
+  const hhmmToMin = (s) => {
+    const [h, m] = String(s).split(':').map(Number);
+    return h * 60 + m;
+  };
+  // Active priced window for a corridor at SG-now (weekday only).
+  function erpActiveWindow(corridor) {
+    const t = sgNow();
+    const now = t.mins;
+    for (const w of corridor.windows) {
+      if (now >= hhmmToMin(w.start) && now < hhmmToMin(w.end) && w.rate > 0) return w;
+    }
+    return null;
+  }
+  function erpExpresswaysWithData() {
+    const set = [...new Set((state.erpRates.corridors || []).map((c) => c.expressway))];
+    const order = (state.erpZoneMap && state.erpZoneMap.searchPriority) || [];
+    return set.sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  }
+  const erpFmt = (n) => `$${n.toFixed(2)}`;
+
+  function renderErpRates() {
+    const body = document.getElementById('tripBody');
+    if (!body) return;
+    if (!state.erpRates || !state.erpZoneMap) {
+      body.innerHTML = `<div class="state-msg" style="padding:48px 0">
+        <div class="spinner"></div><div class="title">Loading ERP rates…</div></div>`;
+      loadErpData().then(() => { if (state.tripSubView === 'rates') renderErpRates(); });
+      return;
+    }
+    const mult = erpMult();
+    const dayType = state.erpDayType || erpToday();
+    const t = sgNow();
+    const clock = (() => {
+      let h = Math.floor(t.mins / 60), m = t.mins % 60;
+      const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      return `${h}:${String(m).padStart(2, '0')}${ap}`;
+    })();
+    const names = state.erpZoneMap.expresswayNames || {};
+    const zones = state.erpZoneMap.zones || {};
+
+    // ---- "Currently charging now" quick view ----
+    let nowBlock;
+    if (dayType !== 'weekday') {
+      nowBlock = `<div class="erp-now free">
+        <div class="erp-now-head">${ERP_OK}<span>No ERP charges right now</span></div>
+        <div class="erp-now-sub">ERP does not operate on ${ERP_DAY_LABEL[dayType]} — parking the gantries is free all day.</div>
+      </div>`;
+    } else {
+      const charging = [];
+      for (const c of state.erpRates.corridors) {
+        const w = erpActiveWindow(c);
+        if (w) charging.push({ x: c.expressway, z: c.id, desc: (zones[c.id] && zones[c.id].description) || c.label, amt: w.rate * mult });
+      }
+      charging.sort((a, b) => b.amt - a.amt);
+      if (!charging.length) {
+        nowBlock = `<div class="erp-now free">
+          <div class="erp-now-head">${ERP_OK}<span>No ERP charges active right now</span></div>
+          <div class="erp-now-sub">${clock} · ${ERP_DAY_LABEL[dayType]} — no priced gantries on the data we hold.</div>
+        </div>`;
+      } else {
+        nowBlock = `<div class="erp-now">
+          <div class="erp-now-head">${ERP_BOLT}<span>Active ERP charges now</span></div>
+          <div class="erp-now-sub">${clock} · ${ERP_DAY_LABEL[dayType]} · ${escapeHtml(vehLabel())}</div>
+          ${charging.map((r) => `<div class="erp-now-row">
+            <span class="enr-z">${escapeHtml(r.x)} <small>${escapeHtml(r.z)} · ${escapeHtml(r.desc)}</small></span>
+            <span class="enr-amt">${erpFmt(r.amt)}</span></div>`).join('')}
+        </div>`;
+      }
+    }
+
+    const effLine = `<div class="erp-rt-sub">🕐 Rates effective ${escapeHtml(state.erpRates.effectiveFrom)} ·
+      <a href="${escapeHtml(state.erpRates.officialRatesUrl || '#')}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">official LTA ↗</a></div>`;
+
+    // ---- Expressway list (no selection) ----
+    if (!state.erpXway) {
+      const q = state.erpSearch.trim().toLowerCase();
+      const rows = erpExpresswaysWithData().filter((x) => {
+        if (!q) return true;
+        return x.toLowerCase().includes(q) || (names[x] || '').toLowerCase().includes(q);
+      }).map((x) => {
+        const cs = state.erpRates.corridors.filter((c) => c.expressway === x);
+        const gantryCount = new Set(cs.flatMap((c) => String(c.gantries).split(',').map((s) => s.trim()).filter(Boolean))).size;
+        let minRate = Infinity;
+        cs.forEach((c) => c.windows.forEach((w) => { if (w.rate > 0) minRate = Math.min(minRate, w.rate); }));
+        const from = isFinite(minRate) ? erpFmt(minRate * mult) : '—';
+        return `<button class="xway-row" data-xway="${escapeHtml(x)}">
+          <span class="xway-abbr">${escapeHtml(x)}</span>
+          <span class="xway-info">
+            <span class="xway-name">${escapeHtml(names[x] || x)}</span>
+            <span class="xway-meta">${gantryCount} gantr${gantryCount === 1 ? 'y' : 'ies'} · Rates from ${from}</span>
+          </span>
+          <span class="xway-chev">${ERP_CHEV}</span>
+        </button>`;
+      }).join('');
+      body.innerHTML = `${nowBlock}
+        <div class="erp-rates-search">
+          ${ERP_SEARCH}
+          <input id="erpSearchInput" placeholder="Search expressway e.g. AYE, CTE, PIE…"
+                 value="${escapeHtml(state.erpSearch)}" autocomplete="off" spellcheck="false" />
+        </div>
+        ${rows || `<div class="erp-free-msg" style="background:var(--surface);color:var(--text-muted);border-color:var(--border)">No expressway matches “${escapeHtml(state.erpSearch)}”.</div>`}`;
+      return;
+    }
+
+    // ---- Selected expressway: rate table ----
+    const x = state.erpXway;
+    const cs = state.erpRates.corridors.filter((c) => c.expressway === x);
+    const vehBtns = ['car', 'motorcycle', 'heavy'].map((v) =>
+      `<button class="erp-tg-btn vehicle-btn ${state.tripVehicle === v ? 'active' : ''}" data-v="${v}">${v === 'car' ? 'Car' : v === 'motorcycle' ? 'Motorbike' : 'Heavy'}</button>`).join('');
+    const dayBtns = ['weekday', 'sat', 'sunph'].map((d) =>
+      `<button class="erp-tg-btn ${dayType === d ? 'active' : ''}" data-day="${d}">${ERP_DAY_LABEL[d]}</button>`).join('');
+
+    let tables;
+    if (dayType !== 'weekday') {
+      tables = `<div class="erp-free-msg">${ERP_OK} No ERP charges on ${ERP_DAY_LABEL[dayType]} — free all day.</div>`;
+    } else {
+      tables = cs.map((c) => {
+        const z = zones[c.id] || {};
+        const slots = c.windows.filter((w) => w.rate * mult > 0).map((w) => {
+          const active = t.mins >= hhmmToMin(w.start) && t.mins < hhmmToMin(w.end);
+          return `<div class="erp-slot${active ? ' active' : ''}">
+            <span class="es-time">${escapeHtml(w.start)} – ${escapeHtml(w.end)}</span>
+            ${active ? '<span class="es-now">active now</span>' : ''}
+            <span class="es-amt">${erpFmt(w.rate * mult)}</span></div>`;
+        }).join('');
+        return `<div class="erp-zone">
+          <div class="erp-zone-h">${escapeHtml(c.id)} · ${escapeHtml(z.description || c.label)}
+            <small>Gantries ${escapeHtml(String(c.gantries))}${z.direction ? ' · ' + escapeHtml(z.direction) : ''}</small></div>
+          ${slots || `<div class="erp-slot"><span class="es-time" style="color:var(--text-faint)">No priced windows</span></div>`}
+        </div>`;
+      }).join('');
+    }
+
+    body.innerHTML = `${nowBlock}
+      <button class="erp-back" id="erpBackBtn">${ERP_BACK} All expressways</button>
+      <div class="erp-rt-head">${escapeHtml(x)} — ${escapeHtml(names[x] || x)}</div>
+      ${effLine}
+      <div class="erp-toggles">
+        <div class="erp-toggle-group">${vehBtns}</div>
+        <div class="erp-toggle-group">${dayBtns}</div>
+      </div>
+      ${tables}`;
+  }
+
+  function vehLabel() {
+    return state.tripVehicle === 'car' ? 'Car'
+      : state.tripVehicle === 'motorcycle' ? 'Motorcycle' : 'Heavy vehicle';
+  }
+  const ERP_OK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  const ERP_BOLT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+  const ERP_CHEV = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+  const ERP_BACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
+  const ERP_SEARCH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
+
   function renderTrip() {
     els.locationPill.style.display = 'none';
     setBanner('');
+    // Build the sub-tab shell once; afterwards only #tripBody swaps.
+    if (!document.getElementById('tripSubtabs')) {
+      els.content.innerHTML = `
+        <div class="subtab-bar" id="tripSubtabs">
+          <button class="subtab-btn" data-sub="planner">Route Planner</button>
+          <button class="subtab-btn" data-sub="rates">ERP Rates</button>
+        </div>
+        <div id="tripBody"></div>`;
+    }
+    document.querySelectorAll('#tripSubtabs .subtab-btn').forEach((b) =>
+      b.classList.toggle('active', b.dataset.sub === state.tripSubView));
+    if (state.tripSubView === 'rates') renderErpRates();
+    else renderRoutePlanner();
+  }
+
+  function renderRoutePlanner() {
+    const body = document.getElementById('tripBody');
+    if (!body) return;
 
     // Default destination = whatever was searched in the main search bar
     if (!state.tripDest && state.locationLabel && state.position) {
@@ -2545,7 +2875,7 @@
     const originLabel = state.userGpsLabel
       || (origin ? 'Current location' : 'Enable location or search above');
 
-    els.content.innerHTML = `
+    body.innerHTML = `
       <div class="trip-form" id="tripForm">
         <div class="trip-row">
           <span class="trip-dot green"></span>
@@ -2773,6 +3103,7 @@
     // In the ERP-charges view a search sets the destination, not a carpark area
     if (state.view === 'trip') {
       state.tripDest = { lat: result.lat, lng: result.lng, label: result.label };
+      state.tripSubView = 'planner';   // a destination search → Route Planner
       if (!document.getElementById('tripForm')) renderTrip();
       const di = document.getElementById('tripDestInput');
       if (di) di.value = result.label;
@@ -2995,6 +3326,24 @@
   });
   els.clearBtn.addEventListener('click', clearSearch);
   els.content.addEventListener('click', (e) => {
+    // ERP sub-tab switch (Route Planner / ERP Rates)
+    const subBtn = e.target.closest('.subtab-btn[data-sub]');
+    if (subBtn) {
+      if (subBtn.dataset.sub !== state.tripSubView) {
+        state.tripSubView = subBtn.dataset.sub;
+        renderTrip();
+      }
+      return;
+    }
+    // ERP Rates: pick an expressway
+    const xwayRow = e.target.closest('.xway-row[data-xway]');
+    if (xwayRow) { state.erpXway = xwayRow.dataset.xway; renderErpRates(); return; }
+    // ERP Rates: back to expressway list
+    if (e.target.closest('#erpBackBtn')) { state.erpXway = null; renderErpRates(); return; }
+    // ERP Rates: day-type toggle
+    const dayBtn = e.target.closest('.erp-tg-btn[data-day]');
+    if (dayBtn) { state.erpDayType = dayBtn.dataset.day; renderErpRates(); return; }
+
     const camCard = e.target.closest('.cam-card');
     if (camCard) {
       const img = camCard.querySelector('img');
@@ -3019,8 +3368,9 @@
     if (vBtn) {
       if (vBtn.dataset.v === state.tripVehicle) return;
       state.tripVehicle = vBtn.dataset.v;
-      try { localStorage.setItem('pq-vehicle', state.tripVehicle); } catch {}
+      try { localStorage.setItem('parkwhere_vehicle_type', state.tripVehicle); } catch {}
       document.querySelectorAll('.vehicle-btn').forEach((b) => b.classList.toggle('active', b.dataset.v === state.tripVehicle));
+      if (state.tripSubView === 'rates') { renderErpRates(); return; }
       // Recompute ERP for the new vehicle if routes are already shown
       if (state.routes.length && state.tripDest && !state.tripInFlight) loadDirections();
       return;
@@ -3050,6 +3400,13 @@
 
   // Trip dest input: delegation via content (input events bubble)
   els.content.addEventListener('input', (e) => {
+    if (e.target.id === 'erpSearchInput') {
+      state.erpSearch = e.target.value;
+      renderErpRates();
+      const ni = document.getElementById('erpSearchInput');
+      if (ni) { ni.focus(); const v = ni.value; ni.value = ''; ni.value = v; }
+      return;
+    }
     if (e.target.id !== 'tripDestInput') return;
     const q = e.target.value.trim();
     // If user edits after picking a suggestion, clear the locked dest
@@ -3093,9 +3450,14 @@
   window.addEventListener('resize', moveIndicator, { passive: true });
   window.addEventListener('load', moveIndicator);
 
-  // Restore saved vehicle type for ERP (PRD §3.7)
+  // Restore saved vehicle type — shared by Route Planner & ERP Rates.
+  // Canonical key is parkwhere_vehicle_type; migrate the legacy pq-vehicle.
   try {
-    const v = localStorage.getItem('pq-vehicle');
+    let v = localStorage.getItem('parkwhere_vehicle_type');
+    if (!v) {
+      const old = localStorage.getItem('pq-vehicle');
+      if (old) { v = old; localStorage.setItem('parkwhere_vehicle_type', old); }
+    }
     if (['car', 'motorcycle', 'heavy'].includes(v)) state.tripVehicle = v;
   } catch {}
 

@@ -1,0 +1,27 @@
+{
+  "_note": "Maps ERP corridor/zone ids → expressway. All ERP-rates display logic reads expressway names + ordering from this file. Corridors themselves (with gantry lists, time windows and rates) live in erp-rates.json. TODO: re-check LTA DataMall when a new ERP rates notice is published.",
+  "expresswayNames": {
+    "AYE": "Ayer Rajah Expressway",
+    "BKE": "Bukit Timah Expressway",
+    "CTE": "Central Expressway",
+    "ECP": "East Coast Parkway",
+    "KJE": "Kranji Expressway",
+    "KPE": "Kallang-Paya Lebar Expressway",
+    "MCE": "Marina Coastal Expressway",
+    "NSC": "North-South Corridor",
+    "PIE": "Pan Island Expressway",
+    "SLE": "Seletar Expressway",
+    "TPE": "Tampines Expressway",
+    "CBD": "City / Orchard cordon"
+  },
+  "searchPriority": ["AYE", "CTE", "PIE", "ECP", "KPE", "BKE", "MCE", "KJE", "SLE", "TPE", "NSC", "CBD"],
+  "zones": {
+    "AYE": { "expressway": "AYE", "description": "Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set", "direction": "Citybound / Outbound" },
+    "CTE": { "expressway": "CTE", "description": "After Braddell / Serangoon / Balestier; AMK; nb before Braddell", "direction": "Southbound / Northbound" },
+    "ECP": { "expressway": "ECP", "description": "City; eastbound before KPE", "direction": "Citybound / Eastbound" },
+    "PIE": { "expressway": "PIE", "description": "Bendemeer; slip to CTE; westbound before Eunos", "direction": "Eastbound / Westbound" },
+    "KPE": { "expressway": "KPE", "description": "Southbound before ECP", "direction": "Southbound" },
+    "BKE": { "expressway": "BKE", "description": "Between Dairy Farm Road and PIE", "direction": "Towards PIE" },
+    "MCE": { "expressway": "MCE", "description": "Westbound before Central Blvd; eastbound after Maxwell", "direction": "Eastbound / Westbound" }
+  }
+}
