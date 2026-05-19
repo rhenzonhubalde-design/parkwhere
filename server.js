@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -294,6 +295,109 @@ app.get('/api/incidents', async (req, res) => {
         error: err.message,
       });
     }
+    res.status(502).json({ error: 'Upstream LTA API unavailable', detail: err.message });
+  }
+});
+
+// ---------- Traffic camera images (Traffic-Images: ~90 expressway cameras) ----------
+// Image links are signed and valid for 5 min only — we cache the API response
+// for 50 s so links served to clients are always well within their validity.
+const TRAFFIC_IMAGES_ENDPOINT = 'https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2';
+const TRAFFIC_IMG_TTL_MS = 50 * 1000;
+let trafficImgCache = { data: null, fetchedAt: 0 };
+
+// Camera labels: cameras are at fixed coordinates, so we reverse-geocode each
+// CameraID once and persist it to disk (geocoded only ever once, then instant).
+// A small curated override file handles landmark spots (checkpoints, Sentosa)
+// where a bare road name reads poorly. Anything still unknown → coord fallback.
+const CAM_OVERRIDE_PATH = path.join(__dirname, 'public', 'data', 'camera-locations.json');
+const CAM_GEOCACHE_PATH = path.join(__dirname, 'public', 'data', 'camera-geocode-cache.json');
+let camOverrides = {};
+let camGeoCache = {};       // CameraID → label
+let camGeoSaveTimer = null;
+let camGeoBusy = false;
+const camGeoQueue = [];     // [{ id, lat, lng }]
+
+try {
+  const j = JSON.parse(fs.readFileSync(CAM_OVERRIDE_PATH, 'utf8'));
+  camOverrides = (j && j.locations) || {};
+} catch { /* optional */ }
+try {
+  camGeoCache = JSON.parse(fs.readFileSync(CAM_GEOCACHE_PATH, 'utf8')) || {};
+  console.log(`[cam] loaded ${Object.keys(camGeoCache).length} cached camera labels`);
+} catch { camGeoCache = {}; }
+
+function persistCamGeoCache() {
+  clearTimeout(camGeoSaveTimer);
+  camGeoSaveTimer = setTimeout(() => {
+    fs.writeFile(CAM_GEOCACHE_PATH, JSON.stringify(camGeoCache, null, 0), (e) => {
+      if (e) console.warn('[cam] could not persist geocode cache:', e.message);
+    });
+  }, 1500);
+}
+
+// Drains the geocode queue one-at-a-time, ~1.2 s apart (Nominatim fair-use).
+async function drainCamGeoQueue() {
+  if (camGeoBusy) return;
+  camGeoBusy = true;
+  while (camGeoQueue.length) {
+    const { id, lat, lng } = camGeoQueue.shift();
+    if (camGeoCache[id]) continue;
+    try {
+      const label = await nominatimLabel(lat, lng);
+      if (label) { camGeoCache[id] = label; persistCamGeoCache(); }
+    } catch (e) {
+      console.warn(`[cam] geocode ${id} failed:`, e.message);
+    }
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  camGeoBusy = false;
+}
+
+// Attach a `Location` to each camera; enqueue any still-unknown IDs.
+function enrichCameraLabels(cameras) {
+  let queued = false;
+  for (const c of cameras) {
+    const label = camOverrides[c.CameraID] || camGeoCache[c.CameraID] || null;
+    c.Location = label;
+    if (!label && !camGeoQueue.some((q) => q.id === c.CameraID)) {
+      camGeoQueue.push({ id: c.CameraID, lat: c.Latitude, lng: c.Longitude });
+      queued = true;
+    }
+  }
+  if (queued) drainCamGeoQueue();
+  return cameras;
+}
+
+app.get('/api/traffic-images', async (req, res) => {
+  const now = Date.now();
+  if (trafficImgCache.data && now - trafficImgCache.fetchedAt < TRAFFIC_IMG_TTL_MS) {
+    return res.json({
+      data: enrichCameraLabels(trafficImgCache.data),
+      fetchedAt: new Date(trafficImgCache.fetchedAt).toISOString(),
+      stale: false,
+    });
+  }
+
+  try {
+    const r = await fetch(TRAFFIC_IMAGES_ENDPOINT, {
+      headers: { AccountKey: LTA_API_KEY, Accept: 'application/json' },
+    });
+    if (!r.ok) throw new Error(`LTA API responded ${r.status} ${r.statusText}`);
+    const json = await r.json();
+    const data = (Array.isArray(json.value) ? json.value : [])
+      .map((c) => ({
+        CameraID: String(c.CameraID),
+        Latitude: parseFloat(c.Latitude),
+        Longitude: parseFloat(c.Longitude),
+        ImageLink: c.ImageLink,
+      }))
+      .filter((c) => isFinite(c.Latitude) && isFinite(c.Longitude) && c.ImageLink);
+    trafficImgCache = { data, fetchedAt: now };
+    res.json({ data: enrichCameraLabels(data), fetchedAt: new Date(now).toISOString(), stale: false });
+  } catch (err) {
+    console.error('[lta] traffic-images fetch failed:', err.message);
+    // Do NOT serve a stale cache here — image links may already be expired.
     res.status(502).json({ error: 'Upstream LTA API unavailable', detail: err.message });
   }
 });
@@ -599,6 +703,23 @@ app.get('/api/directions', async (req, res) => {
     return url;
   }
 
+  // Downsample a route's polyline to ≤60 [lat,lng] points so the client can
+  // cheaply test which traffic cameras fall within ~1 km of the route.
+  function routePath(route) {
+    const enc = route.polyline && route.polyline.encodedPolyline;
+    if (!enc) return [];
+    const pts = decodePolyline(enc);
+    if (pts.length <= 60) return pts.map((p) => [+p[0].toFixed(5), +p[1].toFixed(5)]);
+    const step = Math.ceil(pts.length / 60);
+    const out = [];
+    for (let i = 0; i < pts.length; i += step) {
+      out.push([+pts[i][0].toFixed(5), +pts[i][1].toFixed(5)]);
+    }
+    const last = pts[pts.length - 1];
+    out.push([+last[0].toFixed(5), +last[1].toFixed(5)]);
+    return out;
+  }
+
   function mapRoute(route, label, avoidTolls = false) {
     const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
     const expressways = extractExpressways(route.description, steps);
@@ -613,6 +734,7 @@ app.get('/api/directions', async (req, res) => {
       erpLikely:     expressways.length > 0,
       erp,
       mapsUrl:       buildMapsUrl(route, avoidTolls),
+      path:          routePath(route),
     };
   }
   const erpHigh = (rt) => (rt.erp && rt.erp.charging ? rt.erp.estHigh : 0);
@@ -718,6 +840,31 @@ app.get('/api/geocode', async (req, res) => {
 const revGeoCache = new Map(); // key "lat,lng"(4dp) → { label, at }
 const REVGEO_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Shared Nominatim reverse-geocode → concise human label (null on failure).
+async function nominatimLabel(lat, lng) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}` +
+              `&format=jsonv2&zoom=17&addressdetails=1`;
+  const r = await fetch(url, {
+    headers: { 'User-Agent': 'ParkWhereSG/1.0 (parkwhere.live)', Accept: 'application/json' },
+  });
+  if (!r.ok) throw new Error(`Nominatim ${r.status}`);
+  const j = await r.json();
+  const a = j.address || {};
+  const named = a.amenity || a.building || a.shop || a.office || '';
+  const road  = a.road || '';
+  const area  = a.suburb || a.neighbourhood || a.town || a.city || a.county || '';
+  let label;
+  if (named) {
+    label = named;
+  } else if (road) {
+    label = area && area !== road ? `${road}, ${area}` : road;
+  } else {
+    label = area || (j.display_name || '').split(',').slice(0, 2).join(',').trim() || null;
+  }
+  if (label && label.length > 48) label = label.slice(0, 47).trim() + '…';
+  return label;
+}
+
 app.get('/api/revgeocode', async (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
@@ -730,29 +877,7 @@ app.get('/api/revgeocode', async (req, res) => {
     return res.json({ label: hit.label, cached: true });
   }
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}` +
-                `&format=jsonv2&zoom=18&addressdetails=1`;
-    const r = await fetch(url, {
-      headers: { 'User-Agent': 'ParkWhereSG/1.0 (parkwhere.live)', Accept: 'application/json' },
-    });
-    if (!r.ok) throw new Error(`Nominatim ${r.status}`);
-    const j = await r.json();
-    const a = j.address || {};
-    // Build a concise, human label. A named place (amenity/building) stands
-    // on its own; a plain road gets a suburb for context.
-    const named = a.amenity || a.building || a.shop || a.office || '';
-    const road  = a.road || '';
-    const area  = a.suburb || a.neighbourhood || a.town || a.city || a.county || '';
-    let label;
-    if (named) {
-      label = named;                                  // e.g. "Nanyang Technological University"
-    } else if (road) {
-      label = area && area !== road ? `${road}, ${area}` : road;
-    } else {
-      label = area || (j.display_name || '').split(',').slice(0, 2).join(',').trim()
-              || 'Current location';
-    }
-    if (label.length > 48) label = label.slice(0, 47).trim() + '…';
+    const label = await nominatimLabel(lat, lng) || 'Current location';
     revGeoCache.set(key, { label, at: Date.now() });
     res.json({ label });
   } catch (err) {

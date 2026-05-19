@@ -1,0 +1,14 @@
+{
+  "_source": "Curated overrides for landmark cameras where a road-name reverse-geocode reads poorly. Verified against the live Traffic-Imagesv2 camera coordinates. All other cameras are labelled by server-side reverse geocoding of their fixed coordinates (accurate road/area name), with a coordinate fallback.",
+  "locations": {
+    "2701": "Woodlands Causeway (Towards Johor)",
+    "2702": "Woodlands Checkpoint",
+    "4716": "Tuas Checkpoint",
+    "4703": "Tuas Second Link",
+    "4707": "Tuas Second Link",
+    "4712": "Tuas Second Link",
+    "4713": "Tuas Second Link",
+    "4798": "Sentosa Gateway",
+    "4799": "Sentosa Gateway"
+  }
+}

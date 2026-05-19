@@ -851,6 +851,112 @@
   .erp-meta a:hover { text-decoration: underline; }
 
   /* ============================================================
+     Traffic cameras
+     ============================================================ */
+  .cam-section { margin: 22px 0 4px; }
+  .cam-section-head {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 700; color: var(--text);
+    letter-spacing: -0.01em; margin: 0 2px 10px;
+  }
+  .cam-section-head svg { width: 15px; height: 15px; stroke-width: 2; color: var(--accent); }
+  .cam-section-head .cam-loc { color: var(--text-muted); font-weight: 600; }
+  .cam-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-card);
+    width: 100%; text-align: left; display: block;
+  }
+  .cam-card:hover { border-color: var(--border-strong); }
+  .cam-img-wrap {
+    position: relative; width: 100%; height: 168px;
+    background: var(--surface-2); overflow: hidden;
+  }
+  .cam-img-wrap img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .cam-skel {
+    position: absolute; inset: 0;
+    background: linear-gradient(100deg,
+      var(--surface-2) 30%, var(--surface-3) 50%, var(--surface-2) 70%);
+    background-size: 200% 100%;
+    animation: cam-shimmer 1.3s ease-in-out infinite;
+  }
+  @keyframes cam-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .cam-fallback {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 8px; color: var(--text-faint);
+    font-size: 12px; font-weight: 500;
+  }
+  .cam-fallback svg { width: 26px; height: 26px; stroke-width: 1.6; }
+  .cam-meta { padding: 10px 12px; }
+  .cam-name {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    letter-spacing: -0.01em; line-height: 1.35;
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+  .cam-name svg { width: 13px; height: 13px; stroke-width: 2; flex-shrink: 0; margin-top: 2px; color: var(--accent); }
+  .cam-sub {
+    font-size: 11.5px; color: var(--text-muted); font-weight: 500;
+    margin-top: 3px; padding-left: 19px;
+  }
+  .cam-sub .dot {
+    display: inline-block; width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-faint); margin: 0 7px; vertical-align: middle;
+  }
+  /* ERP route card — horizontal scrollable strip */
+  .cam-strip-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+    margin: 2px 0 8px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .cam-strip-label svg { width: 13px; height: 13px; stroke-width: 2; color: var(--accent); }
+  .cam-strip {
+    display: flex; gap: 10px; overflow-x: auto;
+    margin: 0 -2px; padding: 0 2px 4px;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  }
+  .cam-strip::-webkit-scrollbar { height: 0; }
+  .cam-strip .cam-card {
+    flex: 0 0 220px; width: 220px; scroll-snap-align: start;
+  }
+  .cam-strip .cam-img-wrap { height: 124px; }
+  .cam-strip .cam-meta { padding: 8px 10px; }
+  .cam-strip .cam-name { font-size: 12px; }
+  .cam-strip .cam-sub { font-size: 11px; padding-left: 0; margin-top: 2px; }
+  /* Full-screen lightbox */
+  .cam-lightbox {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 20px;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .cam-lightbox.open { opacity: 1; pointer-events: auto; }
+  .cam-lightbox img {
+    max-width: 100%; max-height: 78vh; border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .cam-lightbox .cam-lb-cap {
+    color: #fff; font-size: 13.5px; font-weight: 600;
+    margin-top: 16px; text-align: center; max-width: 90%;
+  }
+  .cam-lightbox .cam-lb-sub {
+    color: rgba(255,255,255,0.6); font-size: 12px;
+    font-weight: 500; margin-top: 4px;
+  }
+  .cam-lb-close {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 16px); right: 16px;
+    width: 38px; height: 38px; border-radius: 50%;
+    background: rgba(255,255,255,0.14); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cam-lb-close svg { width: 18px; height: 18px; stroke-width: 2.5; }
+
+  /* ============================================================
      States
      ============================================================ */
   .state-msg {
@@ -1021,6 +1127,15 @@
   <div id="footerNote" class="footer-note"></div>
   <div id="toast" class="toast"></div>
 
+  <div id="camLightbox" class="cam-lightbox" role="dialog" aria-modal="true">
+    <button class="cam-lb-close" id="camLbClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <img id="camLbImg" alt="Live traffic camera" />
+    <div class="cam-lb-cap" id="camLbCap"></div>
+    <div class="cam-lb-sub" id="camLbSub"></div>
+  </div>
+
 <script>
 (() => {
   'use strict';
@@ -1041,6 +1156,8 @@
     userGpsLabel: null,       // reverse-geocoded label for userGps
     carparks: [],
     incidents: [],
+    cameras: [],
+    camerasFetchedAt: 0,
     ev: [],
     privateParks: [],
     tripDest: null,
@@ -1080,6 +1197,11 @@
     segIndicator: $('segIndicator'),
     trafficCount: $('trafficCount'),
     evCount: $('evCount'),
+    camLightbox: $('camLightbox'),
+    camLbClose: $('camLbClose'),
+    camLbImg: $('camLbImg'),
+    camLbCap: $('camLbCap'),
+    camLbSub: $('camLbSub'),
   };
 
   let suggestController = null;
@@ -1415,6 +1537,154 @@
     return { time: m[3], date: `${m[1]}/${m[2]}`, text: m[4].trim() };
   }
 
+  // ============================================================
+  //  Traffic cameras (Workstream 4)
+  // ============================================================
+  let camLocations = null;          // { id: "label" } lazy-loaded once
+  let camLocationsPromise = null;
+
+  function loadCameraLocations() {
+    if (camLocations) return Promise.resolve(camLocations);
+    if (camLocationsPromise) return camLocationsPromise;
+    camLocationsPromise = fetch('/data/camera-locations.json')
+      .then((r) => r.json())
+      .then((j) => { camLocations = (j && j.locations) || {}; return camLocations; })
+      .catch(() => { camLocations = {}; return camLocations; });
+    return camLocationsPromise;
+  }
+
+  function cameraLabel(cam) {
+    // Server resolves curated overrides + reverse-geocoded road names into
+    // cam.Location; camLocations is a last-resort client fallback.
+    const l = cam.Location || (camLocations && camLocations[cam.CameraID]);
+    if (l) return l;
+    return `${cam.Latitude.toFixed(4)}, ${cam.Longitude.toFixed(4)}`;
+  }
+
+  function timeAgo(ms) {
+    if (!ms) return '';
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 45) return 'just now';
+    const m = Math.round(s / 60);
+    if (m < 1) return 'just now';
+    if (m === 1) return '1 min ago';
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    return h === 1 ? '1 hr ago' : `${h} hrs ago`;
+  }
+
+  const CAM_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
+  const CAM_PIN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+
+  // ≤1 km from any sampled point of a route polyline
+  function camerasNearPath(path, maxM = 1000) {
+    if (!Array.isArray(path) || !path.length || !state.cameras.length) return [];
+    const out = [];
+    for (const cam of state.cameras) {
+      let best = Infinity;
+      for (const [lat, lng] of path) {
+        const d = haversine(lat, lng, cam.Latitude, cam.Longitude);
+        if (d < best) best = d;
+        if (best <= maxM) break;
+      }
+      if (best <= maxM) out.push({ ...cam, distance: best });
+    }
+    return out.sort((a, b) => a.distance - b.distance);
+  }
+
+  function getNearestCameras(lat, lng, count = 3) {
+    return state.cameras
+      .map((c) => ({ ...c, distance: haversine(lat, lng, c.Latitude, c.Longitude) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, count);
+  }
+
+  // Renders one camera card. variant '' (full) or 'strip'.
+  function cameraCardHtml(cam) {
+    const name = cameraLabel(cam);
+    const distStr = cam.distance != null ? formatDistance(cam.distance) + ' away' : '';
+    const updated = timeAgo(state.camerasFetchedAt);
+    const sub = [distStr, updated ? 'Updated ' + updated : '']
+      .filter(Boolean)
+      .map((p, i) => (i ? '<span class="dot"></span>' : '') + escapeHtml(p))
+      .join('');
+    return `
+      <button class="cam-card" data-cam-id="${escapeHtml(cam.CameraID)}"
+              data-cam-name="${escapeHtml(name)}" data-cam-src="${escapeHtml(cam.ImageLink)}">
+        <span class="cam-img-wrap">
+          <span class="cam-skel"></span>
+          <img loading="lazy" src="${escapeHtml(cam.ImageLink)}" alt="${escapeHtml(name)}"
+               onload="window.__camOK(this)" onerror="window.__camFail(this)" />
+        </span>
+        <span class="cam-meta">
+          <span class="cam-name">${CAM_PIN}<span>${escapeHtml(name)}</span></span>
+          ${sub ? `<span class="cam-sub">${sub}</span>` : ''}
+        </span>
+      </button>`;
+  }
+  window.__camOK = (img) => {
+    const skel = img.parentElement && img.parentElement.querySelector('.cam-skel');
+    if (skel) skel.remove();
+  };
+  window.__camFail = (img) => {
+    img.style.display = 'none';
+    const wrap = img.parentElement;
+    if (!wrap || wrap.querySelector('.cam-fallback')) return;
+    const skel = wrap.querySelector('.cam-skel');
+    if (skel) skel.remove();
+    const fb = document.createElement('span');
+    fb.className = 'cam-fallback';
+    fb.innerHTML = CAM_ICON + '<span>Image unavailable</span>';
+    wrap.appendChild(fb);
+  };
+
+  function openCamLightbox(src, name, sub) {
+    els.camLbImg.src = src;
+    els.camLbCap.textContent = name || '';
+    els.camLbSub.textContent = sub || '';
+    els.camLightbox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCamLightbox() {
+    els.camLightbox.classList.remove('open');
+    els.camLbImg.src = '';
+    document.body.style.overflow = '';
+  }
+
+  async function loadCameras({ silent = true } = {}) {
+    try {
+      await loadCameraLocations();
+      const res = await fetch('/api/traffic-images');
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const json = await res.json();
+      state.cameras = json.data || [];
+      state.camerasFetchedAt = json.fetchedAt ? Date.parse(json.fetchedAt) : Date.now();
+      if (state.view === 'traffic') renderTrafficCameras();
+      if (state.view === 'trip' && state.routes.length) renderTripRoutes();
+    } catch (err) {
+      console.warn('loadCameras failed:', err.message);
+      // Spec 4.7: fail silently — section is simply omitted.
+    }
+  }
+
+  // Traffic tab — "Live Cameras Near [Location]" (3 nearest)
+  function renderTrafficCameras() {
+    const host = document.getElementById('trafficCameras');
+    if (!host) return;
+    const origin = state.position || state.userGps;
+    if (!origin || !state.cameras.length) { host.innerHTML = ''; return; }
+    const near = getNearestCameras(origin.lat, origin.lng, 3);
+    if (!near.length) { host.innerHTML = ''; return; }
+    const locName = state.locationLabel
+      ? `<span class="cam-loc">${escapeHtml(state.locationLabel)}</span>`
+      : '<span class="cam-loc">you</span>';
+    host.innerHTML = `
+      <div class="cam-section">
+        <div class="cam-section-head">${CAM_ICON}<span>Live cameras near ${locName}</span></div>
+        <div class="list">${near.map(cameraCardHtml).join('')}</div>
+      </div>`;
+  }
+
   const SEVERITY = { red: 0, amber: 1, accent: 2, grey: 3 };
 
   function buildIncidentList() {
@@ -1447,12 +1717,14 @@
 
     if (items.length === 0) {
       els.content.innerHTML = `
-        <div class="state-msg">
+        <div class="state-msg" style="padding:56px 24px">
           <div class="title">No active traffic incidents</div>
           <div class="sub">Roads are clear right now. This refreshes automatically.</div>
-        </div>`;
+        </div>
+        <div id="trafficCameras"></div>`;
       els.footerNote.textContent = '';
       els.locationPill.style.display = 'none';
+      renderTrafficCameras();
       return;
     }
 
@@ -1480,7 +1752,8 @@
         </button>`;
     }).join('');
 
-    els.content.innerHTML = `<div class="list">${rows}</div>`;
+    els.content.innerHTML = `<div class="list">${rows}</div><div id="trafficCameras"></div>`;
+    renderTrafficCameras();
     els.footerNote.textContent = state.position
       ? `${items.length} incident${items.length === 1 ? '' : 's'} · nearest first`
       : `${items.length} incident${items.length === 1 ? '' : 's'} island-wide`;
@@ -1514,6 +1787,7 @@
         renderIncidents();
         tickUpdated();
         if (!silent) showToast('Updated');
+        loadCameras();        // refresh camera strip on same poll cycle
       }
     } catch (err) {
       console.error('loadIncidents failed:', err);
@@ -1798,6 +2072,11 @@
            <span class="ret-amt">${erpAmt}</span>
            <span class="ret-lbl">${erpCls === 'free' ? 'no ERP' : 'est. ERP'}</span>
          </span>`;
+      const nearCams = camerasNearPath(route.path || []).slice(0, 8);
+      const camStrip = nearCams.length
+        ? `<div class="cam-strip-label">${CAM_ICON}<span>Live cameras on this route</span></div>
+           <div class="cam-strip">${nearCams.map(cameraCardHtml).join('')}</div>`
+        : '';
       return `
         <div class="route-card" style="animation-delay:${idx * 60}ms">
           <div class="route-header">
@@ -1813,8 +2092,12 @@
             <span class="route-stats-right">${saves}${erpHeadline}</span>
           </div>
           ${erpBlock(route.erp)}
+          ${camStrip}
         </div>`;
     }).join('');
+
+    // Cameras may not have loaded yet — fetch then re-render once.
+    if (!state.cameras.length) loadCameras();
 
     const noAlt = state.noErpFreeAlt
       ? `<div class="erp-noalt">No fully ERP-free route to here — every option passes priced gantries. Compare the estimates above to pick your trade-off.</div>`
@@ -2299,6 +2582,15 @@
   });
   els.clearBtn.addEventListener('click', clearSearch);
   els.content.addEventListener('click', (e) => {
+    const camCard = e.target.closest('.cam-card');
+    if (camCard) {
+      const img = camCard.querySelector('img');
+      if (!img || img.style.display === 'none') return; // unavailable image
+      const subEl = camCard.querySelector('.cam-sub');
+      openCamLightbox(camCard.dataset.camSrc, camCard.dataset.camName,
+        subEl ? subEl.textContent : '');
+      return;
+    }
     const incident = e.target.closest('.incident-card');
     if (incident) {
       window.open(`https://www.google.com/maps/search/?api=1&query=${incident.dataset.lat},${incident.dataset.lng}`, '_blank', 'noopener');
@@ -2332,6 +2624,15 @@
       if (tripSuggestions[idx]) pickTripDest(tripSuggestions[idx]);
       return;
     }
+  });
+
+  // Camera lightbox: close on button, backdrop, or Escape
+  els.camLbClose.addEventListener('click', closeCamLightbox);
+  els.camLightbox.addEventListener('click', (e) => {
+    if (e.target === els.camLightbox) closeCamLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && els.camLightbox.classList.contains('open')) closeCamLightbox();
   });
 
   // Trip dest input: delegation via content (input events bubble)
