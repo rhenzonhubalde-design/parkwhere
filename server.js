@@ -954,7 +954,7 @@ function estimateERP(decodedPts, durationSec, vehicle) {
   if (hits.length === 0) {
     return {
       charging: false, sgTime: dep.hhmm, estLow: 0, estHigh: 0, corridors: [],
-      reason: 'No ERP — this route doesn’t pass any priced ERP gantry.',
+      reason: 'This route doesn’t pass any priced ERP gantry.',
     };
   }
 

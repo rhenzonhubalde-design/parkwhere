@@ -935,6 +935,14 @@
     font-weight: 500; padding: 0; outline: none; letter-spacing: -0.01em;
   }
   .trip-dest-input::placeholder { color: var(--text-faint); }
+  .trip-gps-btn {
+    flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    color: var(--accent); background: var(--accent-soft); cursor: pointer;
+    transition: background .15s;
+  }
+  .trip-gps-btn:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  .trip-gps-btn svg { width: 14px; height: 14px; }
   .trip-actions {
     display: flex; flex-direction: column;
     gap: 10px; margin-top: 14px;
@@ -1147,6 +1155,19 @@
     margin: 2px 0 8px; padding-top: 12px; border-top: 1px solid var(--border);
   }
   .cam-strip-label svg { width: 13px; height: 13px; stroke-width: 2; color: var(--accent); }
+  .cam-strip-toggle {
+    display: flex; align-items: center; gap: 7px; width: 100%;
+    font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+    margin-top: 2px; padding-top: 12px; border-top: 1px solid var(--border);
+    cursor: pointer; background: none; text-align: left;
+  }
+  .cam-strip-toggle:hover { color: var(--text); }
+  .cam-strip-toggle > svg:first-child { width: 13px; height: 13px; stroke-width: 2; color: var(--accent); flex-shrink: 0; }
+  .cam-strip-toggle span { flex: 1; }
+  .cam-strip-chev { width: 15px; height: 15px; stroke-width: 2.5; flex-shrink: 0; transition: transform .2s ease; }
+  .cam-strip-toggle[aria-expanded="true"] .cam-strip-chev { transform: rotate(180deg); }
+  .cam-strip[hidden] { display: none; }
+  .cam-strip { margin-top: 10px; }
   .cam-strip {
     display: flex; gap: 10px; overflow-x: auto;
     margin: 0 -2px; padding: 0 2px 4px;
@@ -1399,6 +1420,7 @@
     ev: [],
     privateParks: [],
     tripDest: null,
+    tripOrigin: null,           // free-text origin override; null = device GPS / searched position
     tripVehicle: 'car',
     routes: [],
     erpMeta: null,
@@ -1459,6 +1481,11 @@
   let tripSugIdx = -1;
   let tripSugTimer = null;
   let tripSugCtrl = null;
+  // Origin-input autocomplete (Route Planner free-text start point)
+  let originSuggestions = [];
+  let originSugIdx = -1;
+  let originSugTimer = null;
+  let originSugCtrl = null;
 
   // ---------- helpers ----------
   function haversine(lat1, lng1, lat2, lng2) {
@@ -2413,7 +2440,11 @@
       if (s.plugs.length) specLines.push(escapeHtml(s.plugs.join(' · ')));
       const pw = [];
       if (s.maxKw) pw.push(`${s.maxKw} kW`);
-      if (s.price) pw.push(`$${s.price}/${escapeHtml(s.priceType || 'kWh')}`);
+      // Skip placeholder/zero tariffs (operators often report "$0.0000")
+      const priceNum = parseFloat(s.price);
+      if (isFinite(priceNum) && priceNum > 0) {
+        pw.push(`$${s.price}/${escapeHtml(s.priceType || 'kWh')}`);
+      }
       if (pw.length) specLines.push(pw.join(' · '));
       const specsHtml = specLines.length
         ? `<div class="ev-specs">${specLines.map((l) => `<span>${l}</span>`).join('')}</div>`
@@ -2602,7 +2633,7 @@
     const cors = erp.corridors || [];
     // Route crosses no priced gantry at all → clean "free" pill.
     if (!cors.length) {
-      return `<div class="route-erp ok">${OK_ICON}<span>${escapeHtml(erp.reason)}</span></div>`;
+      return `<div class="route-erp ok">${OK_ICON}<span><strong>No ERP</strong> · ${escapeHtml(erp.reason)}</span></div>`;
     }
     const total = erp.estHigh || 0;
     // Every crossed gantry is listed — including $0 ones — so the driver
@@ -2656,8 +2687,11 @@
          </span>`;
       const nearCams = camerasNearPath(route.path || []).slice(0, 8);
       const camStrip = nearCams.length
-        ? `<div class="cam-strip-label">${CAM_ICON}<span>Live cameras on this route</span></div>
-           <div class="cam-strip">${nearCams.map(cameraCardHtml).join('')}</div>`
+        ? `<button type="button" class="cam-strip-toggle" aria-expanded="false">
+             ${CAM_ICON}<span>Live cameras on this route (${nearCams.length})</span>
+             <svg class="cam-strip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+           </button>
+           <div class="cam-strip" hidden>${nearCams.map(cameraCardHtml).join('')}</div>`
         : '';
       return `
         <div class="route-card" style="animation-delay:${idx * 60}ms">
@@ -2914,15 +2948,24 @@
       return;
     }
 
-    const origin = state.userGps || state.position;
-    const originLabel = state.userGpsLabel
-      || (origin ? 'Current location' : 'Enable location or search above');
+    const gpsOrigin = state.userGps || state.position;
+    const originValue = state.tripOrigin
+      ? state.tripOrigin.label
+      : (state.userGpsLabel || (gpsOrigin ? 'Current location' : ''));
 
     body.innerHTML = `
       <div class="trip-form" id="tripForm">
         <div class="trip-row">
           <span class="trip-dot green"></span>
-          <span class="trip-origin-label">${escapeHtml(originLabel)}</span>
+          <input id="tripOriginInput" class="trip-dest-input"
+                 placeholder="Start point — type or use current location"
+                 value="${escapeHtml(originValue)}"
+                 autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" />
+          <button type="button" id="tripOriginGps" class="trip-gps-btn" title="Use current location" aria-label="Use current location">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path><circle cx="12" cy="12" r="8"></circle></svg>
+          </button>
+          <ul id="tripOriginSuggestList" class="suggest-list"
+              style="top:calc(100% + 4px);left:22px;right:0;"></ul>
         </div>
         <div class="trip-line"></div>
         <div class="trip-row">
@@ -2975,11 +3018,100 @@
       if (!state.tripDest) setTimeout(() => destInput.focus(), 50);
     }
 
+    // Origin input: keyboard nav over its own suggestion list
+    const originInput = document.getElementById('tripOriginInput');
+    if (originInput) {
+      originInput.addEventListener('keydown', (e) => {
+        const listEl = document.getElementById('tripOriginSuggestList');
+        const items = listEl ? listEl.querySelectorAll('.suggest-item:not(.empty)') : [];
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          originSugIdx = Math.min(originSugIdx + 1, items.length - 1);
+          items.forEach((el, i) => el.classList.toggle('active', i === originSugIdx));
+          if (items[originSugIdx]) items[originSugIdx].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          originSugIdx = Math.max(originSugIdx - 1, 0);
+          items.forEach((el, i) => el.classList.toggle('active', i === originSugIdx));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const pick = originSuggestions[originSugIdx >= 0 ? originSugIdx : 0];
+          if (pick) { pickTripOrigin(pick); return; }
+          if (state.tripDest && !state.tripInFlight) loadDirections();
+        } else if (e.key === 'Escape') {
+          if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
+        }
+      });
+    }
+
     renderTripRoutes();
   }
 
+  // Origin autocomplete (mirrors the destination input)
+  function handleTripOriginInput(q) {
+    originSugIdx = -1;
+    if (originSugTimer) clearTimeout(originSugTimer);
+    const listEl = document.getElementById('tripOriginSuggestList');
+    if (!listEl) return;
+    if (q.length < 2) { listEl.classList.remove('open'); listEl.innerHTML = ''; return; }
+    originSugTimer = setTimeout(async () => {
+      if (originSugCtrl) originSugCtrl.abort();
+      originSugCtrl = new AbortController();
+      try {
+        const json = await geocode(q, originSugCtrl.signal);
+        originSuggestions = json.results || [];
+        const el = document.getElementById('tripOriginSuggestList');
+        if (!el) return;
+        if (!originSuggestions.length) {
+          el.innerHTML = `<li class="suggest-item empty">No matches for "${escapeHtml(q)}"</li>`;
+          el.classList.add('open');
+          return;
+        }
+        el.innerHTML = originSuggestions.map((r, i) => `
+          <li class="suggest-item" data-oidx="${i}" role="option">
+            ${escapeHtml(r.label)}
+            ${r.address && r.address !== r.label ? `<span class="sub">${escapeHtml(r.address)}</span>` : ''}
+          </li>`).join('');
+        el.classList.add('open');
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('[origin suggest]', err.message);
+      }
+    }, 220);
+  }
+
+  function pickTripOrigin(result) {
+    state.tripOrigin = { lat: result.lat, lng: result.lng, label: result.label };
+    const oi = document.getElementById('tripOriginInput');
+    if (oi) oi.value = result.label;
+    const listEl = document.getElementById('tripOriginSuggestList');
+    if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
+    originSuggestions = [];
+    originSugIdx = -1;
+    pushRecent(result);
+    if (state.tripDest && !state.tripInFlight) loadDirections();
+  }
+
+  // "Use current location" reset on the origin row
+  function useTripOriginGps() {
+    state.tripOrigin = null;
+    const oi = document.getElementById('tripOriginInput');
+    if (oi) oi.value = state.userGpsLabel || ((state.userGps || state.position) ? 'Current location' : '');
+    const listEl = document.getElementById('tripOriginSuggestList');
+    if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
+    if (!state.userGps && !state.position && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((p) => {
+        captureUserGps(p.coords.latitude, p.coords.longitude);
+        state.position = state.position || { lat: p.coords.latitude, lng: p.coords.longitude };
+        if (state.tripDest && !state.tripInFlight) loadDirections();
+      }, () => showToast('Location unavailable'),
+        { timeout: GEO_TIMEOUT_MS, maximumAge: 30000, enableHighAccuracy: false });
+      return;
+    }
+    if (state.tripDest && !state.tripInFlight) loadDirections();
+  }
+
   async function loadDirections() {
-    const origin = state.userGps || state.position;
+    const origin = state.tripOrigin || state.userGps || state.position;
     const dest = state.tripDest;
     if (!origin || !dest || state.tripInFlight) return;
 
@@ -3185,7 +3317,7 @@
       if (di) di.value = result.label;
       const gd = document.getElementById('getDirectionsBtn');
       if (gd) gd.disabled = false;
-      if (state.userGps || state.position) loadDirections();
+      if (state.tripOrigin || state.userGps || state.position) loadDirections();
       updateTrafficBadge();
       updateEVBadge();
       return;
@@ -3298,9 +3430,9 @@
       const j = await r.json();
       if (j && j.label) {
         state.userGpsLabel = j.label;
-        if (state.view === 'trip') {
-          const el = document.querySelector('.trip-origin-label');
-          if (el) el.textContent = j.label;
+        if (state.view === 'trip' && !state.tripOrigin) {
+          const oi = document.getElementById('tripOriginInput');
+          if (oi && (!oi.value || oi.value === 'Current location')) oi.value = j.label;
         }
       }
     } catch { /* soft-fail → keep "Current location" */ }
@@ -3422,6 +3554,15 @@
     reCenterOnUser();              // revert to GPS / "Near you"
   });
   els.content.addEventListener('click', (e) => {
+    // Route-card camera strip: collapsed by default, toggle on tap
+    const camTog = e.target.closest('.cam-strip-toggle');
+    if (camTog) {
+      const strip = camTog.nextElementSibling;
+      const open = camTog.getAttribute('aria-expanded') === 'true';
+      camTog.setAttribute('aria-expanded', open ? 'false' : 'true');
+      if (strip && strip.classList.contains('cam-strip')) strip.hidden = open;
+      return;
+    }
     // ERP sub-tab switch (Route Planner / ERP Rates)
     const subBtn = e.target.closest('.subtab-btn[data-sub]');
     if (subBtn) {
@@ -3483,6 +3624,15 @@
       if (tripSuggestions[idx]) pickTripDest(tripSuggestions[idx]);
       return;
     }
+    // Trip: origin autocomplete item
+    const origItem = e.target.closest('.suggest-item[data-oidx]');
+    if (origItem) {
+      const idx = parseInt(origItem.dataset.oidx, 10);
+      if (originSuggestions[idx]) pickTripOrigin(originSuggestions[idx]);
+      return;
+    }
+    // Trip: "use current location" on the origin row
+    if (e.target.closest('#tripOriginGps')) { useTripOriginGps(); return; }
   });
 
   // Camera lightbox: close on button, backdrop, or Escape
@@ -3503,6 +3653,13 @@
       if (ni) { ni.focus(); const v = ni.value; ni.value = ''; ni.value = v; }
       return;
     }
+    if (e.target.id === 'tripOriginInput') {
+      const q = e.target.value.trim();
+      // Editing after a pick unlocks the origin → revert to GPS unless re-picked
+      if (state.tripOrigin && state.tripOrigin.label !== q) state.tripOrigin = null;
+      handleTripOriginInput(q);
+      return;
+    }
     if (e.target.id !== 'tripDestInput') return;
     const q = e.target.value.trim();
     // If user edits after picking a suggestion, clear the locked dest
@@ -3515,12 +3672,13 @@
   });
   document.addEventListener('click', (e) => {
     if (!els.searchBar.contains(e.target)) closeSuggestions();
-    // Also close trip destination suggest when clicking outside it
-    const tripList  = document.getElementById('tripSuggestList');
-    const tripInput = document.getElementById('tripDestInput');
-    if (tripList && tripInput &&
-        !tripList.contains(e.target) && !tripInput.contains(e.target)) {
-      tripList.classList.remove('open');
+    // Also close trip dest/origin suggests when clicking outside them
+    for (const [lid, iid] of [['tripSuggestList', 'tripDestInput'],
+                              ['tripOriginSuggestList', 'tripOriginInput']]) {
+      const lst = document.getElementById(lid), inp = document.getElementById(iid);
+      if (lst && inp && !lst.contains(e.target) && !inp.contains(e.target)) {
+        lst.classList.remove('open');
+      }
     }
   });
 
