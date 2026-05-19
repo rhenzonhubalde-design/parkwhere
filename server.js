@@ -546,6 +546,8 @@ app.get('/api/directions', async (req, res) => {
       destination: { location: { latLng: { latitude:  parseFloat(dlat), longitude: parseFloat(dlng) } } },
       travelMode: 'DRIVE',
       computeAlternativeRoutes: !avoidTolls, // alternates only needed on the primary call
+      // TRAFFIC_AWARE → ETAs reflect live traffic, matching Google Maps app times
+      routingPreference: 'TRAFFIC_AWARE',
       languageCode: 'en-US',
     };
     if (avoidTolls) body.routeModifiers = { avoidTolls: true };
@@ -590,35 +592,50 @@ app.get('/api/directions', async (req, res) => {
       return res.json({ routes: [], warning: 'No route found between these points.' });
     }
 
-    const routes = j.routes.slice(0, 2).map((rt, i) =>
-      mapRoute(rt, i === 0 ? 'Fastest' : 'Alternative'));
+    // Keep every distinct route Google returns (up to 3) so the motorist can
+    // weigh time vs ERP themselves. Dedupe only exact repeats.
+    const routes = [];
+    const seen = new Set();
+    for (const rt of j.routes.slice(0, 4)) {
+      const m = mapRoute(rt, 'Alternative');
+      const key = `${(m.summary || '').toLowerCase()}|${m.durationValue}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      routes.push(m);
+      if (routes.length >= 3) break;
+    }
+    routes[0].label = 'Fastest';
 
-    // If the fastest route has ERP, actively hunt for an ERP-free / cheaper
-    // route via avoidTolls (Google models SG ERP as a toll). Only one extra
-    // call, and only when it can actually help — keeps API cost down.
-    let noErpFreeAlternative = false;
-    if (erpHigh(routes[0]) > 0) {
+    // If every route so far is charged, do ONE avoidTolls call to try to
+    // surface a cheaper / ERP-free option — added, never replacing the others.
+    const cheapestHi = Math.min(...routes.map(erpHigh));
+    if (cheapestHi > 0) {
       try {
         const ja = await callRoutes(true);
-        const alt = ja.routes && ja.routes[0] ? mapRoute(ja.routes[0], 'ERP-free') : null;
-        const cheapestExisting = Math.min(...routes.map(erpHigh));
-        if (alt && erpHigh(alt) < cheapestExisting) {
-          alt.label = erpHigh(alt) === 0 ? 'ERP-free' : 'Cheaper';
-          // Replace any existing alternative; keep Fastest first
-          const dup = routes.findIndex((rt) => rt.summary === alt.summary);
-          if (dup > 0) routes.splice(dup, 1);
-          routes.splice(1, routes.length, alt);
-        } else {
-          noErpFreeAlternative = true;
-          if (routes.length > 1) routes.length = 1; // drop the same-ERP "alternative"
+        const alt = ja.routes && ja.routes[0] ? mapRoute(ja.routes[0], 'Cheaper') : null;
+        if (alt) {
+          const altKey = `${(alt.summary || '').toLowerCase()}|${alt.durationValue}`;
+          if (!seen.has(altKey) && erpHigh(alt) < cheapestHi) {
+            alt.label = erpHigh(alt) === 0 ? 'ERP-free' : 'Cheaper';
+            routes.push(alt);
+          }
         }
       } catch (e) {
         console.warn('[directions] avoidTolls call failed:', e.message);
       }
     }
 
+    // Order: Fastest stays first; the rest sorted cheapest-ERP first so the
+    // money-saving option is easy to spot.
+    const rest = routes.slice(1).sort((a, b) => erpHigh(a) - erpHigh(b));
+    const ordered = [routes[0], ...rest].slice(0, 3);
+
+    // Informational only — true when NO option avoids ERP entirely.
+    const noErpFreeAlternative =
+      ordered.every((r) => erpHigh(r) > 0) && erpHigh(ordered[0]) > 0;
+
     res.json({
-      routes,
+      routes: ordered,
       vehicle,
       noErpFreeAlternative,
       erpEffectiveFrom: ERP_RATES ? ERP_RATES.effectiveFrom : null,
