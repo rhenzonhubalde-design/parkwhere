@@ -1,0 +1,330 @@
+{
+  "type": "FeatureCollection",
+  "_note": "Built from LTA ERPGantry_Mar2026 shapefile (SVY21→WGS84). ZoneID = corridor id in erp-rates.json; rate windows live there. Travel direction is validated as roughly perpendicular to spanBearing. confidence:\"low\" = number matched a non-ERP-tagged record (LTA mistag) — used but less certain. TODO: refresh when LTA publishes a new ERPGantry package.",
+  "effectiveFrom": "2026-03-23",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "32",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 224.1,
+        "confidence": "high",
+        "source": "ERP#542 raw=\"32\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.870437,
+          1.32625
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "33",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 177.4,
+        "confidence": "high",
+        "source": "ERP#158 raw=\"33\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.864613,
+          1.329051
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "34",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 163.7,
+        "confidence": "high",
+        "source": "ERP#537 raw=\"34\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.851652,
+          1.318322
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "36",
+        "ZoneID": "AYE",
+        "expressway": "AYE",
+        "name": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+        "spanBearing": 209.4,
+        "confidence": "high",
+        "source": "ERP#90 raw=\"36\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.796751,
+          1.286653
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "37",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 198.8,
+        "confidence": "high",
+        "source": "ERP#544 raw=\"37\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.819869,
+          1.330588
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "38",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 198.9,
+        "confidence": "high",
+        "source": "ERP#315 raw=\"38\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.8283,
+          1.327553
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "41",
+        "ZoneID": "AYE",
+        "expressway": "AYE",
+        "name": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+        "spanBearing": 33.8,
+        "confidence": "high",
+        "source": "ERP#756 raw=\"OS041\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.776704,
+          1.301189
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "42",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 177.5,
+        "confidence": "high",
+        "source": "ERP#408 raw=\"42\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.864618,
+          1.328962
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "45",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 226.3,
+        "confidence": "high",
+        "source": "ERP#543 raw=\"45\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.870379,
+          1.326196
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "52",
+        "ZoneID": "AYE",
+        "expressway": "AYE",
+        "name": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+        "spanBearing": 279.5,
+        "confidence": "high",
+        "source": "ERP#840 raw=\"OS052\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.760818,
+          1.31517
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "53",
+        "ZoneID": "AYE",
+        "expressway": "AYE",
+        "name": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+        "spanBearing": 113.5,
+        "confidence": "high",
+        "source": "ERP#174 raw=\"OS053\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.766452,
+          1.308807
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "65",
+        "ZoneID": "PIE",
+        "expressway": "PIE",
+        "name": "PIE (Bendemeer; slip to CTE; westbound before Eunos)",
+        "spanBearing": 156.4,
+        "confidence": "high",
+        "source": "ERP#549 raw=\"65\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.911671,
+          1.328475
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "74",
+        "ZoneID": "AYE",
+        "expressway": "AYE",
+        "name": "AYE (Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set)",
+        "spanBearing": 228.6,
+        "confidence": "high",
+        "source": "ERP#764 raw=\"OS074\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.758648,
+          1.316315
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "90",
+        "ZoneID": "MCE",
+        "expressway": "MCE",
+        "name": "MCE (westbound before Central Blvd; eastbound after Maxwell)",
+        "spanBearing": 145,
+        "confidence": "high",
+        "source": "ERP#797 raw=\"90\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.867053,
+          1.274964
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "91",
+        "ZoneID": "MCE",
+        "expressway": "MCE",
+        "name": "MCE (westbound before Central Blvd; eastbound after Maxwell)",
+        "spanBearing": 29.2,
+        "confidence": "high",
+        "source": "ERP#765 raw=\"91\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.856723,
+          1.270771
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "92",
+        "ZoneID": "MCE",
+        "expressway": "MCE",
+        "name": "MCE (westbound before Central Blvd; eastbound after Maxwell)",
+        "spanBearing": 139.6,
+        "confidence": "high",
+        "source": "ERP#173 raw=\"92\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.865807,
+          1.274614
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "93",
+        "ZoneID": "MCE",
+        "expressway": "MCE",
+        "name": "MCE (westbound before Central Blvd; eastbound after Maxwell)",
+        "spanBearing": 29.9,
+        "confidence": "high",
+        "source": "ERP#794 raw=\"93\""
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.856561,
+          1.271165
+        ]
+      }
+    }
+  ]
+}

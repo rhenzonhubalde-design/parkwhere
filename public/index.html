@@ -1053,8 +1053,19 @@
   .erp-line {
     display: flex; justify-content: space-between; align-items: baseline;
     color: var(--text); font-size: 12.5px; font-weight: 600;
-    padding: 1px 0 1px 21px;
+    padding: 4px 0 4px 21px; gap: 10px;
   }
+  .erp-line.free { color: var(--text-muted); font-weight: 500; }
+  .erp-line .erp-g { flex: 1; min-width: 0; }
+  .erp-line .erp-g .erp-arr {
+    display: block; font-size: 11px; font-weight: 500;
+    color: var(--text-faint); margin-top: 1px;
+  }
+  .erp-line .erp-amt { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .erp-line.free .erp-amt::after {
+    content: ' ✓ free'; font-size: 10.5px; color: var(--green); font-weight: 600;
+  }
+  .erp-line.charged .erp-amt { color: var(--amber); font-weight: 800; }
   .erp-foot {
     font-size: 11px; color: var(--text-muted); font-weight: 500;
     padding-left: 21px; font-style: italic;
@@ -2588,21 +2599,28 @@
     const ERP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
     const OK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     if (!erp) return '';
-    if (!erp.charging) {
-      return `<div class="route-erp ok">${OK_ICON}<span>No ERP — ${escapeHtml(erp.reason)}</span></div>`;
+    const cors = erp.corridors || [];
+    // Route crosses no priced gantry at all → clean "free" pill.
+    if (!cors.length) {
+      return `<div class="route-erp ok">${OK_ICON}<span>${escapeHtml(erp.reason)}</span></div>`;
     }
-    const rangeTxt = erp.estLow === erp.estHigh
-      ? `$${erp.estLow.toFixed(2)}`
-      : `$${erp.estLow.toFixed(2)}–$${erp.estHigh.toFixed(2)}`;
-    const lines = erp.corridors.map((c) =>
-      `<div class="erp-line"><span>${escapeHtml(c.expressway)} <span class="erp-sub">${escapeHtml(c.window)}</span></span><span>$${c.rate.toFixed(2)}</span></div>`
-    ).join('');
+    const total = erp.estHigh || 0;
+    // Every crossed gantry is listed — including $0 ones — so the driver
+    // can see it was checked and confirmed free at their arrival time.
+    const lines = cors.map((c) => `
+      <div class="erp-line ${c.free ? 'free' : 'charged'}">
+        <span class="erp-g">${escapeHtml(c.label || c.expressway)}
+          <span class="erp-arr">Arrive ~${escapeHtml(c.arrival)} · ${escapeHtml(c.dayType)}${c.window ? ' · ' + escapeHtml(c.window) : ''}</span>
+        </span>
+        <span class="erp-amt">$${c.rate.toFixed(2)}</span>
+      </div>`).join('');
+    const cls = total > 0 ? 'warn' : 'ok';
     return `
-      <div class="route-erp warn">
-        <div class="erp-top">${ERP_ICON}<span>Est. ERP <strong>${rangeTxt}</strong></span>
-          <span class="erp-sub">${escapeHtml(erp.sgTime)} · weekday</span></div>
+      <div class="route-erp ${cls}">
+        <div class="erp-top">${total > 0 ? ERP_ICON : OK_ICON}<span>Est. ERP <strong>$${total.toFixed(2)}</strong></span>
+          <span class="erp-sub">leave ~${escapeHtml(erp.sgTime)}</span></div>
         ${lines}
-        <div class="erp-foot">Estimate — a route may not pass every gantry on a corridor.</div>
+        <div class="erp-foot">Charged at each gantry’s estimated arrival time. Arrival times are estimates.</div>
       </div>`;
   }
 

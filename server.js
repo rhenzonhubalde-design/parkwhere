@@ -796,7 +796,7 @@ function humanDistance(meters) {
   return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
-// ---------- ERP estimator (PDF-derived, corridor + time-window) ----------
+// ---------- ERP estimator (gantry geometry + arrival-time + direction) ----------
 let ERP_RATES = null;
 try {
   ERP_RATES = JSON.parse(
@@ -805,6 +805,110 @@ try {
   console.log(`[erp] loaded rate table (effective ${ERP_RATES.effectiveFrom}, ${ERP_RATES.corridors.length} corridors)`);
 } catch (e) {
   console.warn('[erp] could not load erp-rates.json:', e.message);
+}
+
+// ERP gantry points (real LTA coords, SVY21→WGS84) with the bearing of the
+// gantry span. A vehicle is "passing" a gantry only when the route comes
+// within 40 m AND crosses roughly perpendicular to the span — this is the
+// reliable, data-supported core of the direction fix (kills false positives
+// from parallel / opposite-carriageway roads).
+let ERP_GANTRIES = [];
+try {
+  const gj = JSON.parse(
+    require('fs').readFileSync(path.join(__dirname, 'public', 'data', 'erp-gantries.geojson'), 'utf8')
+  );
+  ERP_GANTRIES = (gj.features || []).map((f) => ({
+    gantryId:    f.properties.gantryId,
+    ZoneID:      f.properties.ZoneID,
+    expressway:  f.properties.expressway,
+    name:        f.properties.name,
+    spanBearing: f.properties.spanBearing,
+    lat:         f.geometry.coordinates[1],
+    lng:         f.geometry.coordinates[0],
+  }));
+  console.log(`[erp] loaded ${ERP_GANTRIES.length} located ERP gantries`);
+} catch (e) {
+  console.warn('[erp] could not load erp-gantries.geojson:', e.message);
+}
+
+// metres between two WGS84 points
+function haversineM(aLat, aLng, bLat, bLng) {
+  const R = 6371000;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLng = (bLng - aLng) * Math.PI / 180;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+function bearingDeg(aLat, aLng, bLat, bLng) {
+  const φ1 = aLat * Math.PI / 180, φ2 = bLat * Math.PI / 180;
+  const dλ = (bLng - aLng) * Math.PI / 180;
+  const y = Math.sin(dλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+// smallest absolute difference between two bearings, 0–180
+function bearingDelta(a, b) {
+  const d = Math.abs(((a - b) % 360 + 360) % 360);
+  return d > 180 ? 360 - d : d;
+}
+// Distribute the route's (traffic-aware) duration across the decoded
+// polyline by cumulative distance → a timestamp + heading per point.
+function buildTimedPolyline(points, totalSeconds, departure) {
+  const n = points.length;
+  if (n < 2) return [];
+  const seg = new Array(n - 1);
+  let totalDist = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const d = haversineM(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1]);
+    seg[i] = d; totalDist += d;
+  }
+  if (totalDist <= 0) return [];
+  const out = []; let cum = 0;
+  for (let i = 0; i < n; i++) {
+    const frac = cum / totalDist;
+    out.push({
+      lat: points[i][0], lng: points[i][1],
+      bearing: i > 0
+        ? bearingDeg(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1])
+        : (n > 1 ? bearingDeg(points[0][0], points[0][1], points[1][0], points[1][1]) : 0),
+      t: new Date(departure.getTime() + frac * totalSeconds * 1000),
+    });
+    if (i < n - 1) cum += seg[i];
+  }
+  return out;
+}
+// Gantries the route actually passes: within 40 m of a timed point and
+// crossing within ±50° of perpendicular to the gantry span.
+function findGantryHits(timed) {
+  const TOL = 50;
+  const hits = [];
+  for (const g of ERP_GANTRIES) {
+    let best = null;
+    for (const pt of timed) {
+      if (haversineM(pt.lat, pt.lng, g.lat, g.lng) > 40) continue;
+      // perpendicular to the span ≈ the travel axis through the gantry
+      const perpA = (g.spanBearing + 90) % 360;
+      const perpB = (g.spanBearing + 270) % 360;
+      const crosses = Math.min(bearingDelta(pt.bearing, perpA),
+                               bearingDelta(pt.bearing, perpB)) <= TOL;
+      if (!crosses) continue;
+      if (!best || pt.t < best.t) best = pt;
+    }
+    if (best) hits.push({ gantry: g, arrival: best.t });
+  }
+  return hits;
+}
+function sgParts(date) {
+  const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+  const d = new Date(utc + 8 * 3600000);
+  const dow = d.getDay();
+  return {
+    dow,
+    isWeekday: dow >= 1 && dow <= 5,
+    minutes: d.getHours() * 60 + d.getMinutes(),
+    hhmm: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+  };
 }
 
 // Current Singapore wall-clock (UTC+8, no DST)
@@ -824,53 +928,75 @@ const toMin = (hhmm) => {
   return h * 60 + m;
 };
 
-// Estimate ERP for a route given the expressways it uses + vehicle type.
-// Honest by design: per-corridor estimate (a route on AYE may not hit every AYE
-// gantry), surfaced as a range, never a fake-precise total.
-function estimateERP(expressways, vehicle) {
+// Single rate lookup. CRITICAL: no matching window strictly means $0 —
+// never fall back to the nearest priced window (Fix B).
+function gantryRate(corridor, arrivalParts, mult) {
+  if (!arrivalParts.isWeekday) return { rate: 0, window: null };
+  const w = corridor.windows.find(
+    (x) => arrivalParts.minutes >= toMin(x.start) && arrivalParts.minutes < toMin(x.end)
+  );
+  if (!w) return { rate: 0, window: null };               // ← $0, no fallback
+  return { rate: +(w.rate * mult).toFixed(2), window: `${w.start}–${w.end}` };
+}
+
+// Estimate ERP from the actual route geometry. Each priced gantry the route
+// physically crosses (direction-validated) is charged at the *estimated
+// arrival time at that gantry*, not the departure time.
+function estimateERP(decodedPts, durationSec, vehicle) {
   if (!ERP_RATES) return null;
   const mult = ERP_RATES.vehicleMultipliers[vehicle] ?? 1.0;
-  const now = sgNow();
+  const departure = new Date();
+  const dep = sgParts(departure);
 
-  if (!now.isWeekday) {
-    return { charging: false, total: 0, sgTime: now.hhmm,
-      reason: 'No ERP — weekends & public holidays are free.', corridors: [] };
+  const timed = buildTimedPolyline(decodedPts || [], durationSec || 0, departure);
+  const hits = findGantryHits(timed);
+
+  if (hits.length === 0) {
+    return {
+      charging: false, sgTime: dep.hhmm, estLow: 0, estHigh: 0, corridors: [],
+      reason: 'No ERP — this route doesn’t pass any priced ERP gantry.',
+    };
   }
 
-  const matched = [];
-  let lo = 0, hi = 0;
-  for (const code of expressways) {
-    const corr = ERP_RATES.corridors.find((c) => c.expressway === code);
+  // One charge per corridor (our rates are corridor-level): keep the
+  // earliest-arrival gantry hit for each ZoneID.
+  const byZone = new Map();
+  for (const h of hits) {
+    const cur = byZone.get(h.gantry.ZoneID);
+    if (!cur || h.arrival < cur.arrival) byZone.set(h.gantry.ZoneID, h);
+  }
+
+  const corridors = [];
+  let total = 0;
+  for (const h of byZone.values()) {
+    const corr = ERP_RATES.corridors.find((c) => c.id === h.gantry.ZoneID);
     if (!corr) continue;
-    const win = corr.windows.find(
-      (w) => now.minutes >= toMin(w.start) && now.minutes < toMin(w.end)
-    );
-    if (win) {
-      const r = +(win.rate * mult).toFixed(2);
-      matched.push({ expressway: code, label: corr.label, rate: r,
-        window: `${win.start}–${win.end}` });
-      hi += r;          // upper bound: every matched corridor charges once
-      lo = Math.max(lo, r); // lower bound: at least the single priciest corridor
-    }
+    const ap = sgParts(h.arrival);
+    const { rate, window } = gantryRate(corr, ap, mult);
+    if (rate > 0) total += rate;
+    corridors.push({
+      expressway: h.gantry.expressway,
+      label:      h.gantry.name,
+      gantryId:   h.gantry.gantryId,
+      arrival:    ap.hhmm,
+      dayType:    ap.isWeekday ? 'Weekday' : (ap.dow === 6 ? 'Saturday' : 'Sunday/PH'),
+      rate,
+      free:       rate === 0,
+      window,
+    });
   }
-
-  if (matched.length === 0) {
-    const usedErpExpwy = expressways.some((e) =>
-      ERP_RATES.corridors.some((c) => c.expressway === e));
-    return { charging: false, total: 0, sgTime: now.hhmm,
-      reason: usedErpExpwy
-        ? 'No ERP now — outside charging hours on these roads.'
-        : 'No priced ERP corridors on this route.',
-      corridors: [] };
-  }
+  corridors.sort((a, b) => b.rate - a.rate);
+  total = +total.toFixed(2);
 
   return {
-    charging: true,
-    sgTime: now.hhmm,
-    estLow: +lo.toFixed(2),
-    estHigh: +hi.toFixed(2),
-    corridors: matched,
-    reason: `Peak ERP in effect (${now.hhmm}, weekday).`,
+    charging: total > 0,
+    sgTime: dep.hhmm,
+    estLow: total,
+    estHigh: total,
+    corridors,
+    reason: total > 0
+      ? 'ERP estimated at each gantry’s arrival time.'
+      : 'Passes ERP gantries but all free at your estimated arrival time.',
   };
 }
 
@@ -968,15 +1094,23 @@ app.get('/api/directions', async (req, res) => {
   function mapRoute(route, label, avoidTolls = false) {
     const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
     const expressways = extractExpressways(route.description, steps);
-    const erp = estimateERP(expressways, vehicle);
+    // Full-resolution polyline + traffic-aware total duration → arrival-timed
+    // gantry detection. routingPreference TRAFFIC_AWARE makes route.duration
+    // the live-traffic ETA (Routes API v2's equivalent of duration_in_traffic).
+    const enc = route.polyline && route.polyline.encodedPolyline;
+    const fullPts = enc ? decodePolyline(enc) : [];
+    const durationSec = parseInt((route.duration || '0s'), 10);
+    const erp = estimateERP(fullPts, durationSec, vehicle);
     return {
       label,
       summary:       route.description || '',
       distance:      humanDistance(route.distanceMeters),
       duration:      humanDuration(route.duration),
-      durationValue: parseInt((route.duration || '0s'), 10),
-      expressways,
-      erpLikely:     expressways.length > 0,
+      durationValue: durationSec,
+      expressways:   (erp && erp.corridors.length)
+        ? [...new Set(erp.corridors.map((c) => c.expressway))]
+        : expressways,
+      erpLikely:     !!(erp && erp.corridors.length),
       erp,
       mapsUrl:       buildMapsUrl(route, avoidTolls),
       path:          routePath(route),
