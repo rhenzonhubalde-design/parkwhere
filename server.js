@@ -279,9 +279,63 @@ app.get('/api/carparks', async (req, res) => {
 // per-carpark operating hours / free-parking / night-parking / gantry meta.
 const DATAGOV_DS = 'https://data.gov.sg/api/action/datastore_search';
 const HDB_RESOURCE = 'd_23f946fa557947f93a8043bbef41dd09';
+const HDB_AVAIL_URL = 'https://api.data.gov.sg/v1/transport/carpark-availability';
+const LTA_RATES_RESOURCE = 'd_9f6056bdb6b1dfba57f063593e4f34ae';
 const PH_COLLECTION = 'https://api-production.data.gov.sg/v2/public/api/collections/691/metadata';
 const META_TTL_MS = 24 * 60 * 60 * 1000;
-let metaCache = { hdb: null, publicHolidays: null, fetchedAt: 0 };
+let metaCache = { hdb: null, publicHolidays: null, ltaRates: null, fetchedAt: 0 };
+
+const ratesNorm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// LTA Carpark Rates CSV (~357 malls/attractions, last updated 2018).
+// Keyed by normalised carpark name so live LTA/URA carparks can match by
+// development name. Always surfaced as unverified in the UI.
+async function fetchLTARates() {
+  const url = `${DATAGOV_DS}?resource_id=${LTA_RATES_RESOURCE}&limit=500`;
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`LTA rates CSV ${r.status}`);
+  const j = await r.json();
+  const recs = (j.result && j.result.records) || [];
+  const clean = (s) => (!s || s.trim() === '-') ? '' : s.trim().replace(/\s+/g, ' ');
+  const sig = (s) => clean(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const out = {};
+  for (const rec of recs) {
+    const key = ratesNorm(rec.carpark);
+    if (!key || key.length < 4) continue;
+    const wd1 = clean(rec.weekdays_rate_1);
+    const wd2 = clean(rec.weekdays_rate_2);
+    const weekday = (!wd2 || sig(wd1) === sig(wd2)) ? wd1 : `${wd1} · ${wd2}`;
+    out[key] = {
+      name:     rec.carpark,
+      weekday,
+      saturday: clean(rec.saturday_rate) || 'Same as weekday',
+      sunPH:    clean(rec.sunday_publicholiday_rate) || 'Same as Saturday',
+    };
+  }
+  console.log(`[lta-rates] loaded ${Object.keys(out).length} carpark rate rows`);
+  return out;
+}
+
+// HDB live capacity (total_lots) — not in the LTA feed nor the HDB info
+// dataset. Capacity is near-static so it rides the 24 h meta cache.
+async function fetchHDBCapacity() {
+  const out = {};
+  try {
+    const r = await fetch(HDB_AVAIL_URL, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error(`HDB availability ${r.status}`);
+    const j = await r.json();
+    const cd = (j.items && j.items[0] && j.items[0].carpark_data) || [];
+    for (const c of cd) {
+      const id = (c.carpark_number || '').trim().toUpperCase();
+      const info = (c.carpark_info || []).find((x) => x.lot_type === 'C') || c.carpark_info?.[0];
+      const total = info ? parseInt(info.total_lots, 10) : 0;
+      if (id && total > 0) out[id] = total;
+    }
+  } catch (e) {
+    console.warn('[hdb] capacity fetch failed:', e.message);
+  }
+  return out;
+}
 
 async function fetchHDBCarparks() {
   const out = {};
@@ -356,21 +410,44 @@ app.get('/api/carpark-meta', async (req, res) => {
     return res.json({
       hdb: metaCache.hdb,
       publicHolidays: metaCache.publicHolidays || [],
+      ltaRates: metaCache.ltaRates || {},
       fetchedAt: new Date(metaCache.fetchedAt).toISOString(),
       stale: false,
     });
   }
   try {
-    const [hdb, publicHolidays] = await Promise.all([
-      fetchHDBCarparks(),
+    // Each source fails independently — a transient rate-limit on one
+    // (e.g. the HDB info dataset) must not blank out the others.
+    const [hdb, capacity, publicHolidays, ltaRates] = await Promise.all([
+      fetchHDBCarparks().catch((e) => {
+        console.warn('[hdb] info fetch failed:', e.message); return {};
+      }),
+      fetchHDBCapacity(),
       fetchPublicHolidays().catch((e) => {
         console.warn('[ph] fetch failed:', e.message); return [];
       }),
+      fetchLTARates().catch((e) => {
+        console.warn('[lta-rates] fetch failed:', e.message); return {};
+      }),
     ]);
-    metaCache = { hdb, publicHolidays, fetchedAt: now };
+    for (const id of Object.keys(hdb)) {
+      if (capacity[id]) hdb[id].totalLots = capacity[id];
+    }
+    // Merge with any previously-cached pieces so a partial failure never
+    // regresses data we already had.
+    const merged = {
+      hdb: Object.keys(hdb).length ? hdb : (metaCache.hdb || {}),
+      publicHolidays: publicHolidays.length ? publicHolidays : (metaCache.publicHolidays || []),
+      ltaRates: Object.keys(ltaRates).length ? ltaRates : (metaCache.ltaRates || {}),
+    };
+    // Only lock the 24 h cache once the (large) HDB set is present;
+    // otherwise allow the next request to retry sooner.
+    const solid = Object.keys(merged.hdb).length > 0;
+    metaCache = { ...merged, fetchedAt: solid ? now : 0 };
     res.json({
-      hdb, publicHolidays,
-      fetchedAt: new Date(now).toISOString(), stale: false,
+      ...merged,
+      fetchedAt: new Date(now).toISOString(),
+      stale: !solid,
     });
   } catch (err) {
     console.error('[carpark-meta] failed:', err.message);
@@ -378,6 +455,7 @@ app.get('/api/carpark-meta', async (req, res) => {
       return res.json({
         hdb: metaCache.hdb,
         publicHolidays: metaCache.publicHolidays || [],
+        ltaRates: metaCache.ltaRates || {},
         fetchedAt: new Date(metaCache.fetchedAt).toISOString(),
         stale: true, error: err.message,
       });

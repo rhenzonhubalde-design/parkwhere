@@ -682,6 +682,17 @@
      Carpark rates (expandable section on card)
      ============================================================ */
   .card-top { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .ev-specs {
+    display: flex; flex-direction: column; gap: 3px;
+    margin-top: 7px; font-size: 12px; font-weight: 500;
+    color: var(--text-muted); line-height: 1.35;
+  }
+  .ev-specs span { display: block; }
+  .occ-pct { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .occ-pct.green { color: var(--green); }
+  .occ-pct.amber { color: var(--amber); }
+  .occ-pct.red   { color: var(--red); }
+  .occ-pct.grey  { color: var(--text-muted); }
   .card-rates {
     width: 100%; margin-top: 12px; padding-top: 11px;
     border-top: 1px solid var(--border);
@@ -1226,7 +1237,7 @@
     userGps: null,            // real device location (never overwritten by search)
     userGpsLabel: null,       // reverse-geocoded label for userGps
     carparks: [],
-    carparkMeta: { hdb: {}, publicHolidays: [] },
+    carparkMeta: { hdb: {}, publicHolidays: [], ltaRates: {} },
     ratesExpanded: new Set(),   // carpark ids with the rates section open
     incidents: [],
     cameras: [],
@@ -1519,6 +1530,41 @@
       };
     }
 
+    // --- LTA / URA live carparks matched to the LTA Rates CSV by name ---
+    // (malls, attractions, hotels — 2018 data, always shown unverified)
+    const lr = lookupLtaRates(c.name);
+    if (lr) {
+      const lines = [];
+      if (lr.weekday)  lines.push({ k: 'Weekdays', v: lr.weekday, today: tt === 'weekday' });
+      if (lr.saturday) lines.push({ k: 'Saturday', v: lr.saturday, today: tt === 'sat' });
+      if (lr.sunPH)    lines.push({ k: 'Sun & PH', v: lr.sunPH, today: tt === 'sunph' });
+      if (!lines.length) return null;
+      const eff = effectiveRateStr(lr.weekday, lr.saturday, lr.sunPH, tt);
+      return {
+        headline: headlineRate(eff) || 'See rates',
+        dayLabel, freeNow: false, warn: true, lines,
+        note: 'Rates from 2018 — may have changed. Verify at the carpark.',
+      };
+    }
+
+    return null;
+  }
+
+  // Match a live carpark's development name to an LTA Rates CSV row.
+  const ratesNorm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function lookupLtaRates(name) {
+    const map = state.carparkMeta.ltaRates;
+    if (!map) return null;
+    const fn = ratesNorm(name);
+    if (fn.length < 4) return null;
+    if (map[fn]) return map[fn];
+    // Prefix match either way (e.g. "VivoCity P2" → "vivocity"),
+    // length-guarded to avoid spurious hits.
+    for (const k in map) {
+      if (k.length >= 5 && fn.length >= 5 && (fn.startsWith(k) || k.startsWith(fn))) {
+        return map[k];
+      }
+    }
     return null;
   }
 
@@ -1606,6 +1652,8 @@
             <span class="dist"></span>
             <span class="meta-dot"></span>
             <span class="agency-badge"></span>
+            <span class="meta-dot occ-dot" hidden></span>
+            <span class="occ-pct" hidden></span>
           </div>
         </div>
         <div class="card-lots">
@@ -1655,12 +1703,34 @@
       lotsEl.style.opacity = '0.4';
       requestAnimationFrame(() => { lotsEl.style.transition = 'opacity 0.4s'; lotsEl.style.opacity = '1'; });
     }
-    // Progress bar: shows fraction of lots available (green = lots free, red = nearly full)
+    // Progress bar + "% full" — needs a real total. The LTA feed omits
+    // capacity; HDB capacity comes from carpark-meta, URA from its API.
+    const hdbMeta = c.agency === 'HDB' ? state.carparkMeta.hdb[c.id] : null;
+    const total = (hdbMeta && hdbMeta.totalLots) || c.total || 0;
+    const bar = card.querySelector('.card-bar');
     const barFill = card.querySelector('.card-bar-fill');
-    if (barFill) {
-      const pct = (c.lots != null && c.total > 0) ? Math.round((c.lots / c.total) * 100) : 0;
-      barFill.style.width = `${pct}%`;
-      barFill.className = `card-bar-fill ${color}`;
+    const occDot = card.querySelector('.occ-dot');
+    const occPct = card.querySelector('.occ-pct');
+    const haveOccupancy = c.lots != null && total > 0;
+    if (haveOccupancy) {
+      const availPct = Math.max(0, Math.min(100, Math.round((c.lots / total) * 100)));
+      const fullPct = 100 - availPct;
+      if (barFill) {
+        barFill.style.width = `${availPct}%`;
+        barFill.className = `card-bar-fill ${color}`;
+      }
+      if (bar) bar.style.display = '';
+      if (occDot) occDot.hidden = false;
+      if (occPct) {
+        occPct.hidden = false;
+        occPct.textContent = `${fullPct}% full`;
+        occPct.className = `occ-pct ${color}`;
+      }
+    } else {
+      // No capacity data → a permanently-empty 4px strip is just noise.
+      if (bar) bar.style.display = 'none';
+      if (occDot) occDot.hidden = true;
+      if (occPct) occPct.hidden = true;
     }
 
     // ---- Rates section (Workstream 5) ----
@@ -1808,7 +1878,8 @@
       if (!silent) showToast('Updated');
       // Lazy-retry carpark metadata if the startup fetch missed (e.g. a
       // transient upstream rate-limit) — rate rows fill in once it lands.
-      if (!Object.keys(state.carparkMeta.hdb).length) loadCarparkMeta();
+      if (!Object.keys(state.carparkMeta.hdb).length
+          || !Object.keys(state.carparkMeta.ltaRates).length) loadCarparkMeta();
     } catch (err) {
       console.error('loadCarparks failed:', err);
       if (state.carparks.length === 0) {
@@ -2175,29 +2246,36 @@
       const op = s.operators[0]
         ? escapeHtml(titleCase(s.operators[0].replace(/\b(PTE\.?|LTD\.?|LIMITED|SERVICES|SINGAPORE)\b/gi, '').replace(/\s+/g, ' ').trim()) || s.operators[0])
         : 'EV Charging';
-      const specs = [];
-      if (s.plugs.length) specs.push(escapeHtml(s.plugs.join(' · ')));
-      if (s.maxKw) specs.push(`${s.maxKw} kW`);
-      if (s.price) specs.push(`$${s.price}/${escapeHtml(s.priceType || 'kWh')}`);
+      const specLines = [];
+      if (s.plugs.length) specLines.push(escapeHtml(s.plugs.join(' · ')));
+      const pw = [];
+      if (s.maxKw) pw.push(`${s.maxKw} kW`);
+      if (s.price) pw.push(`$${s.price}/${escapeHtml(s.priceType || 'kWh')}`);
+      if (pw.length) specLines.push(pw.join(' · '));
+      const specsHtml = specLines.length
+        ? `<div class="ev-specs">${specLines.map((l) => `<span>${l}</span>`).join('')}</div>`
+        : '';
       return `
         <button class="card" data-lat="${s.lat}" data-lng="${s.lng}"
                 style="animation-delay:${Math.min(idx * 25, 200)}ms">
-          <div class="card-info">
-            <div class="card-name">${escapeHtml(titleCase(s.name))}</div>
-            <div class="card-meta">
-              <span>${formatDistance(s.dist)}</span>
-              <span class="meta-dot"></span>
-              <span class="agency-badge">${op}</span>
+          <div class="card-top">
+            <div class="card-info">
+              <div class="card-name">${escapeHtml(titleCase(s.name))}</div>
+              <div class="card-meta">
+                <span>${formatDistance(s.dist)}</span>
+                <span class="meta-dot"></span>
+                <span class="agency-badge">${op}</span>
+              </div>
+              ${specsHtml}
             </div>
-            <div class="card-meta" style="margin-top:4px;">${specs.join(' &nbsp;·&nbsp; ')}</div>
-          </div>
-          <div class="card-lots">
-            <div class="status-dot ${color}"></div>
-            <div class="lots-pill">
-              <span class="lots-num ${color}">${s.available}</span>
-              <span style="font-size:15px;font-weight:600;color:var(--text-faint);">/${s.total}</span>
+            <div class="card-lots">
+              <div class="status-dot ${color}"></div>
+              <div class="lots-pill">
+                <span class="lots-num ${color}">${s.available}</span>
+                <span style="font-size:15px;font-weight:600;color:var(--text-faint);">/${s.total}</span>
+              </div>
+              <div class="lots-label">free</div>
             </div>
-            <div class="lots-label">free</div>
           </div>
         </button>`;
     }).join('');
@@ -2279,8 +2357,9 @@
       state.carparkMeta = {
         hdb: j.hdb || {},
         publicHolidays: j.publicHolidays || [],
+        ltaRates: j.ltaRates || {},
       };
-      // Re-render so rate rows appear once metadata arrives.
+      // Re-render so rate rows + occupancy appear once metadata arrives.
       if (state.view === 'parking' && state.position) render();
     } catch (err) {
       console.warn('[carpark-meta] failed to load:', err.message);
