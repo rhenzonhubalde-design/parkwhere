@@ -1908,40 +1908,40 @@
     agency.style.display = c.agency ? '' : 'none';
     const dot = card.querySelector('.meta-dot');
     dot.style.display = c.agency ? '' : 'none';
-    const color = c.lots == null ? 'grey' : lotColor(c.lots);
+    // Progress bar + "% full" — needs a real total. The LTA feed omits
+    // capacity; HDB capacity comes from carpark-meta, URA from its API.
+    const hdbMeta = c.agency === 'HDB' ? state.carparkMeta.hdb[c.id] : null;
+    const total = (hdbMeta && hdbMeta.totalLots) || c.total || 0;
+    const haveOccupancy = c.lots != null && total > 0;
+    // Derive ONE severity colour used by all three indicators (lots number,
+    // progress bar, "% full" label) so they always agree.
+    // When a total is known we colour by percentage (occColor); without a
+    // total we fall back to the absolute-scarcity scale (lotColor).
+    let cls, fullPct = 0;
+    if (haveOccupancy) {
+      const availPct = Math.max(0, Math.min(100, Math.round((c.lots / total) * 100)));
+      fullPct = 100 - availPct;
+      cls = occColor(fullPct);
+    } else {
+      cls = c.lots == null ? 'grey' : lotColor(c.lots);
+    }
     const lotsEl = card.querySelector('.lots-num');
     const statusDot = card.querySelector('.status-dot');
     const prev = lotsEl.textContent;
     const newText = c.lots == null ? '–' : String(c.lots);
     lotsEl.textContent = newText;
-    lotsEl.className = `lots-num ${color}`;
-    statusDot.className = `status-dot ${color}`;
+    lotsEl.className = `lots-num ${cls}`;
+    statusDot.className = `status-dot ${cls}`;
     card.classList.toggle('full', c.lots === 0);
     if (prev && prev !== newText && c.lots != null) {
       lotsEl.style.opacity = '0.4';
       requestAnimationFrame(() => { lotsEl.style.transition = 'opacity 0.4s'; lotsEl.style.opacity = '1'; });
     }
-    // Progress bar + "% full" — needs a real total. The LTA feed omits
-    // capacity; HDB capacity comes from carpark-meta, URA from its API.
-    const hdbMeta = c.agency === 'HDB' ? state.carparkMeta.hdb[c.id] : null;
-    const total = (hdbMeta && hdbMeta.totalLots) || c.total || 0;
     const bar = card.querySelector('.card-bar');
     const barFill = card.querySelector('.card-bar-fill');
     const occDot = card.querySelector('.occ-dot');
     const occPct = card.querySelector('.occ-pct');
-    const haveOccupancy = c.lots != null && total > 0;
     if (haveOccupancy) {
-      const availPct = Math.max(0, Math.min(100, Math.round((c.lots / total) * 100)));
-      const fullPct = 100 - availPct;
-      // Bar width = % full. Colour = whichever signal is *worse*: the
-      // occupancy band (75%/95% thresholds) OR absolute scarcity from
-      // lotColor() — so a tiny lot with only 3 spaces left reads red on
-      // the bar even though it's only 25% full, matching the big lot
-      // number's warning.
-      const sev = { red: 3, amber: 2, green: 1, grey: 0 };
-      const occCls = occColor(fullPct);
-      const lotCls = lotColor(c.lots);
-      const cls = sev[lotCls] > sev[occCls] ? lotCls : occCls;
       if (barFill) {
         barFill.style.width = `${fullPct}%`;
         barFill.className = `card-bar-fill ${cls}`;
