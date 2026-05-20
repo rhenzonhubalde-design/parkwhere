@@ -1933,20 +1933,25 @@
     if (haveOccupancy) {
       const availPct = Math.max(0, Math.min(100, Math.round((c.lots / total) * 100)));
       const fullPct = 100 - availPct;
-      // Bar visualises *occupancy* — fills + reddens as the carpark fills up,
-      // matching the "X% full" label semantically (a long red bar = nearly
-      // full = avoid).
+      // Bar width = % full. Colour = whichever signal is *worse*: the
+      // occupancy band (75%/95% thresholds) OR absolute scarcity from
+      // lotColor() — so a tiny lot with only 3 spaces left reads red on
+      // the bar even though it's only 25% full, matching the big lot
+      // number's warning.
+      const sev = { red: 3, amber: 2, green: 1, grey: 0 };
       const occCls = occColor(fullPct);
+      const lotCls = lotColor(c.lots);
+      const cls = sev[lotCls] > sev[occCls] ? lotCls : occCls;
       if (barFill) {
         barFill.style.width = `${fullPct}%`;
-        barFill.className = `card-bar-fill ${occCls}`;
+        barFill.className = `card-bar-fill ${cls}`;
       }
       if (bar) bar.style.display = '';
       if (occDot) occDot.hidden = false;
       if (occPct) {
         occPct.hidden = false;
         occPct.textContent = `${fullPct}% full`;
-        occPct.className = `occ-pct ${occCls}`;
+        occPct.className = `occ-pct ${cls}`;
       }
     } else {
       // No capacity data → a permanently-empty 4px strip is just noise.
