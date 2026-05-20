@@ -1529,6 +1529,14 @@
     if (lots <= 20) return 'amber';
     return 'green';
   }
+  // Occupancy-driven colour for the "% full" bar/label: the closer to 100%,
+  // the redder. Distinct from lotColor() (which is an absolute scarcity
+  // warning for the big lot count).
+  function occColor(pctFull) {
+    if (pctFull >= 95) return 'red';
+    if (pctFull >= 75) return 'amber';
+    return 'green';
+  }
 
   function titleCase(s) {
     if (!s) return '';
@@ -1925,16 +1933,20 @@
     if (haveOccupancy) {
       const availPct = Math.max(0, Math.min(100, Math.round((c.lots / total) * 100)));
       const fullPct = 100 - availPct;
+      // Bar visualises *occupancy* — fills + reddens as the carpark fills up,
+      // matching the "X% full" label semantically (a long red bar = nearly
+      // full = avoid).
+      const occCls = occColor(fullPct);
       if (barFill) {
-        barFill.style.width = `${availPct}%`;
-        barFill.className = `card-bar-fill ${color}`;
+        barFill.style.width = `${fullPct}%`;
+        barFill.className = `card-bar-fill ${occCls}`;
       }
       if (bar) bar.style.display = '';
       if (occDot) occDot.hidden = false;
       if (occPct) {
         occPct.hidden = false;
         occPct.textContent = `${fullPct}% full`;
-        occPct.className = `occ-pct ${color}`;
+        occPct.className = `occ-pct ${occCls}`;
       }
     } else {
       // No capacity data → a permanently-empty 4px strip is just noise.
@@ -2648,13 +2660,16 @@
   function pickTripDest(result) {
     state.tripDest = { lat: result.lat, lng: result.lng, label: result.label };
     const destInput = document.getElementById('tripDestInput');
-    if (destInput) destInput.value = result.label;
+    if (destInput) { destInput.value = result.label; destInput.blur(); }
     const listEl = document.getElementById('tripSuggestList');
     if (listEl) { listEl.classList.remove('open'); listEl.innerHTML = ''; }
-    const btn = document.getElementById('getDirectionsBtn');
-    if (btn) btn.disabled = false;
     tripSuggestions = [];
     tripSugIdx = -1;
+    pushRecent(result);
+    // Auto-trigger directions as soon as we have a destination + origin
+    if (!state.tripInFlight && (state.tripOrigin || state.userGps || state.position)) {
+      loadDirections();
+    }
   }
 
   // Corridor labels are "AYE (Portsdown–Alexandra citybound; …)". The
@@ -3023,10 +3038,6 @@
             <button class="vehicle-btn ${state.tripVehicle === 'motorcycle' ? 'active' : ''}" data-v="motorcycle">Motorbike</button>
             <button class="vehicle-btn ${state.tripVehicle === 'heavy' ? 'active' : ''}" data-v="heavy">Heavy</button>
           </div>
-          <button id="getDirectionsBtn" class="get-dir-btn" ${!state.tripDest ? 'disabled' : ''}>
-            Directions
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          </button>
         </div>
       </div>
       <div id="tripRoutes"></div>`;
@@ -3085,6 +3096,13 @@
     }
 
     renderTripRoutes();
+    // Auto-load directions when we land on the planner with both endpoints
+    // ready (e.g. a destination picked from the main search bar) and no
+    // routes shown yet — replaces the old explicit "Directions" button.
+    if (state.tripDest && !state.routes.length && !state.tripInFlight
+        && (state.tripOrigin || state.userGps || state.position)) {
+      loadDirections();
+    }
   }
 
   // Origin autocomplete (mirrors the destination input)
@@ -3357,8 +3375,6 @@
       if (!document.getElementById('tripForm')) renderTrip();
       const di = document.getElementById('tripDestInput');
       if (di) di.value = result.label;
-      const gd = document.getElementById('getDirectionsBtn');
-      if (gd) gd.disabled = false;
       if (state.tripOrigin || state.userGps || state.position) loadDirections();
       updateTrafficBadge();
       updateEVBadge();
@@ -3654,11 +3670,6 @@
       if (state.routes.length && state.tripDest && !state.tripInFlight) loadDirections();
       return;
     }
-    // Trip: get directions button
-    if (e.target.closest('#getDirectionsBtn')) {
-      if (state.tripDest && !state.tripInFlight) loadDirections();
-      return;
-    }
     // Trip: destination autocomplete item
     const tripItem = e.target.closest('.suggest-item[data-tidx]');
     if (tripItem) {
@@ -3707,8 +3718,6 @@
     // If user edits after picking a suggestion, clear the locked dest
     if (state.tripDest && state.tripDest.label !== q) {
       state.tripDest = null;
-      const btn = document.getElementById('getDirectionsBtn');
-      if (btn) btn.disabled = true;
     }
     handleTripDestInput(q);
   });
