@@ -911,6 +911,61 @@
     background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent);
     border-radius: 14px; color: var(--green); font-size: 13.5px; font-weight: 600;
   }
+  /* Direction tabs + info banner — drives home the one-way nature of
+     ERP gantries (each gantry charges only one direction of travel). */
+  .erp-dir-info {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin: 14px 0 0; padding: 11px 13px;
+    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    border-radius: 12px; color: var(--text); font-size: 12.5px; line-height: 1.45;
+  }
+  .erp-dir-info svg { width: 16px; height: 16px; stroke-width: 2; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+  .erp-dir-info b { font-weight: 700; }
+  .erp-dir-tabs {
+    display: flex; gap: 6px; margin: 14px 0 0;
+    padding: 4px; background: var(--surface-2); border-radius: 11px;
+  }
+  .erp-dir-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1px; padding: 9px 10px; border: 0; background: transparent;
+    border-radius: 8px; cursor: pointer; color: var(--text-muted);
+    font: inherit; transition: background 0.15s, color 0.15s;
+  }
+  .erp-dir-tab:hover { color: var(--text); }
+  .erp-dir-tab.active {
+    background: var(--surface); color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  }
+  .erp-dir-tab .ddt-main {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.01em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .erp-dir-tab.active .ddt-main { color: var(--accent); }
+  .erp-dir-tab .ddt-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--surface-3); color: var(--text-muted); font-size: 11px; font-weight: 800;
+  }
+  .erp-dir-tab.active .ddt-arrow { background: var(--accent-soft); color: var(--accent); }
+  .erp-dir-tab .ddt-sub { font-size: 10.5px; font-weight: 500; color: var(--text-faint); }
+  .erp-dir-tab.active .ddt-sub { color: var(--text-muted); }
+  /* Single-direction display (no tabs needed) */
+  .erp-dir-solo {
+    display: flex; align-items: center; gap: 10px;
+    margin: 14px 0 0; padding: 11px 13px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .erp-dir-solo .dds-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 12px; font-weight: 800;
+  }
+  .erp-dir-solo .dds-main {
+    font-size: 13.5px; font-weight: 700; color: var(--text);
+  }
+  .erp-dir-solo .dds-sub { font-size: 11.5px; font-weight: 500; color: var(--text-muted); margin-left: 2px; }
 
   /* ============================================================
      Trip tab — form
@@ -1450,6 +1505,7 @@
     erpZoneMap: null,           // erp-zone-map.json
     erpDayType: null,           // 'weekday' | 'sat' | 'sunph' (auto, user-overridable)
     erpXway: null,              // selected expressway abbr, or null = list
+    erpDirIdx: 0,               // index into selected zone's directions[] (per-direction tab)
     erpSearch: '',
     recentLocations: [],        // WS7
     fetchedAt: 0,
@@ -2931,25 +2987,75 @@
     const dayBtns = ['weekday', 'sat', 'sunph'].map((d) =>
       `<button class="erp-tg-btn ${dayType === d ? 'active' : ''}" data-day="${d}">${ERP_DAY_LABEL[d]}</button>`).join('');
 
+    // Pick a representative direction-set for this expressway. Most have a
+    // single corridor entry per expressway, so we read directions from the
+    // first matching zone; multiple corridors with mismatching direction
+    // schemas would need a redesign, but they don't exist in our dataset.
+    const dirOwnerZone = (cs[0] && zones[cs[0].id]) || {};
+    const directions = Array.isArray(dirOwnerZone.directions) && dirOwnerZone.directions.length
+      ? dirOwnerZone.directions : [];
+    // Clamp the active direction index in case the previous expressway had
+    // more directions than this one.
+    const dirIdx = Math.min(state.erpDirIdx || 0, Math.max(0, directions.length - 1));
+    const activeDir = directions[dirIdx] || null;
+    const dirGantries = activeDir ? new Set(activeDir.gantries.map(String)) : null;
+    const filterWin = (w) => {
+      if (!activeDir) return true;
+      const f = activeDir.windowFilter || 'all';
+      if (f === 'all') return true;
+      const startMin = hhmmToMin(w.start);
+      if (f === 'morning') return startMin < 12 * 60;
+      if (f === 'evening') return startMin >= 12 * 60;
+      return true;
+    };
+
+    // One-way info banner + direction tabs / solo-direction badge.
+    const infoBanner = `<div class="erp-dir-info">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+      <span>Each ERP gantry charges <b>one direction only</b>. Driving the opposite way past the same gantry is free.</span>
+    </div>`;
+    let dirControls = '';
+    if (directions.length > 1) {
+      dirControls = `<div class="erp-dir-tabs">${directions.map((d, i) => `
+        <button class="erp-dir-tab ${i === dirIdx ? 'active' : ''}" data-diridx="${i}">
+          <span class="ddt-main"><span class="ddt-arrow">${escapeHtml(d.arrow || '')}</span>${escapeHtml(d.label)}</span>
+          <span class="ddt-sub">${escapeHtml(d.subLabel || '')}</span>
+        </button>`).join('')}</div>`;
+    } else if (directions.length === 1) {
+      const d = directions[0];
+      dirControls = `<div class="erp-dir-solo">
+        <span class="dds-arrow">${escapeHtml(d.arrow || '')}</span>
+        <span><span class="dds-main">${escapeHtml(d.label)}</span> <span class="dds-sub">· ${escapeHtml(d.subLabel || '')}</span></span>
+      </div>`;
+    }
+
     let tables;
     if (dayType !== 'weekday') {
       tables = `<div class="erp-free-msg">${ERP_OK} No ERP charges on ${ERP_DAY_LABEL[dayType]} — free all day.</div>`;
     } else {
       tables = cs.map((c) => {
         const z = zones[c.id] || {};
-        const slots = c.windows.filter((w) => w.rate * mult > 0).map((w) => {
+        // Filter the corridor's gantry list to only those facing the active
+        // direction (if we have direction metadata).
+        const allGantries = String(c.gantries).split(',').map((s) => s.trim()).filter(Boolean);
+        const shownGantries = dirGantries
+          ? allGantries.filter((g) => dirGantries.has(g))
+          : allGantries;
+        if (dirGantries && !shownGantries.length) return '';      // no gantries for this dir in this corridor
+        const slots = c.windows.filter((w) => w.rate * mult > 0 && filterWin(w)).map((w) => {
           const active = t.mins >= hhmmToMin(w.start) && t.mins < hhmmToMin(w.end);
           return `<div class="erp-slot${active ? ' active' : ''}">
             <span class="es-time">${escapeHtml(w.start)} – ${escapeHtml(w.end)}</span>
             ${active ? '<span class="es-now">active now</span>' : ''}
             <span class="es-amt">${erpFmt(w.rate * mult)}</span></div>`;
         }).join('');
+        const dirSuffix = activeDir ? ` · ${escapeHtml(activeDir.label)}` : '';
         return `<div class="erp-zone">
           <div class="erp-zone-h">${escapeHtml(c.id)} · ${escapeHtml(zoneDesc(z.description || c.label))}
-            <small>Gantries ${escapeHtml(String(c.gantries))}${z.direction ? ' · ' + escapeHtml(z.direction) : ''}</small></div>
-          ${slots || `<div class="erp-slot"><span class="es-time" style="color:var(--text-faint)">No priced windows</span></div>`}
+            <small>Gantries ${escapeHtml(shownGantries.join(', '))}${dirSuffix}</small></div>
+          ${slots || `<div class="erp-slot"><span class="es-time" style="color:var(--text-faint)">No priced windows in this direction</span></div>`}
         </div>`;
-      }).join('');
+      }).filter(Boolean).join('');
     }
 
     body.innerHTML = `${nowBlock}
@@ -2960,6 +3066,8 @@
         <div class="erp-toggle-group">${vehBtns}</div>
         <div class="erp-toggle-group">${dayBtns}</div>
       </div>
+      ${infoBanner}
+      ${dirControls}
       ${tables}`;
   }
 
@@ -3635,14 +3743,17 @@
       }
       return;
     }
-    // ERP Rates: pick an expressway
+    // ERP Rates: pick an expressway (also resets the direction tab)
     const xwayRow = e.target.closest('.xway-row[data-xway]');
-    if (xwayRow) { state.erpXway = xwayRow.dataset.xway; renderErpRates(); return; }
+    if (xwayRow) { state.erpXway = xwayRow.dataset.xway; state.erpDirIdx = 0; renderErpRates(); return; }
     // ERP Rates: back to expressway list
-    if (e.target.closest('#erpBackBtn')) { state.erpXway = null; renderErpRates(); return; }
+    if (e.target.closest('#erpBackBtn')) { state.erpXway = null; state.erpDirIdx = 0; renderErpRates(); return; }
     // ERP Rates: day-type toggle
     const dayBtn = e.target.closest('.erp-tg-btn[data-day]');
     if (dayBtn) { state.erpDayType = dayBtn.dataset.day; renderErpRates(); return; }
+    // ERP Rates: direction tab
+    const dirBtn = e.target.closest('.erp-dir-tab[data-diridx]');
+    if (dirBtn) { state.erpDirIdx = parseInt(dirBtn.dataset.diridx, 10) || 0; renderErpRates(); return; }
 
     const camCard = e.target.closest('.cam-card');
     if (camCard) {

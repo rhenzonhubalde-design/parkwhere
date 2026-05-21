@@ -1,5 +1,5 @@
 {
-  "_note": "Maps ERP corridor/zone ids → expressway. All ERP-rates display logic reads expressway names + ordering from this file. Corridors themselves (with gantry lists, time windows and rates) live in erp-rates.json. TODO: re-check LTA DataMall when a new ERP rates notice is published.",
+  "_note": "Maps ERP corridor/zone ids → expressway. All ERP-rates display logic reads expressway names + ordering from this file. Corridors themselves (with gantry lists, time windows and rates) live in erp-rates.json. Each zone now also carries a `directions` array describing which physical gantries face which way (a single gantry charges one direction only — driving the opposite way past it is free). `windowFilter` (\"morning\"|\"evening\"|\"all\") narrows the corridor's rate windows to the ones that actually apply in that direction. TODO: re-check LTA DataMall when a new ERP rates notice is published.",
   "expresswayNames": {
     "AYE": "Ayer Rajah Expressway",
     "BKE": "Bukit Timah Expressway",
@@ -16,12 +16,127 @@
   },
   "searchPriority": ["AYE", "CTE", "PIE", "ECP", "KPE", "BKE", "MCE", "KJE", "SLE", "TPE", "NSC", "CBD"],
   "zones": {
-    "AYE": { "expressway": "AYE", "description": "Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set", "direction": "Citybound / Outbound" },
-    "CTE": { "expressway": "CTE", "description": "After Braddell / Serangoon / Balestier; AMK; nb before Braddell", "direction": "Southbound / Northbound" },
-    "ECP": { "expressway": "ECP", "description": "City; eastbound before KPE", "direction": "Citybound / Eastbound" },
-    "PIE": { "expressway": "PIE", "description": "Bendemeer; slip to CTE; westbound before Eunos", "direction": "Eastbound / Westbound" },
-    "KPE": { "expressway": "KPE", "description": "Southbound before ECP", "direction": "Southbound" },
-    "BKE": { "expressway": "BKE", "description": "Between Dairy Farm Road and PIE", "direction": "Towards PIE" },
-    "MCE": { "expressway": "MCE", "description": "Westbound before Central Blvd; eastbound after Maxwell", "direction": "Eastbound / Westbound" }
+    "AYE": {
+      "expressway": "AYE",
+      "description": "Portsdown–Alexandra citybound; Jurong Town Hall / Clementi set",
+      "directions": [
+        {
+          "id": "cb",
+          "label": "Citybound",
+          "subLabel": "toward CBD",
+          "arrow": "→",
+          "gantries": [36, 41, 52, 53, 74],
+          "windowFilter": "all"
+        }
+      ]
+    },
+    "CTE": {
+      "expressway": "CTE",
+      "description": "After Braddell / Serangoon / Balestier; AMK; nb before Braddell",
+      "directions": [
+        {
+          "id": "sb",
+          "label": "Southbound",
+          "subLabel": "toward CBD",
+          "arrow": "↓",
+          "gantries": [31, 33, 34, 35, 46, 51],
+          "windowFilter": "morning"
+        },
+        {
+          "id": "nb",
+          "label": "Northbound",
+          "subLabel": "toward AMK / SLE",
+          "arrow": "↑",
+          "gantries": [67, 68],
+          "windowFilter": "evening"
+        }
+      ]
+    },
+    "ECP": {
+      "expressway": "ECP",
+      "description": "City; eastbound before KPE",
+      "directions": [
+        {
+          "id": "cb",
+          "label": "Citybound",
+          "subLabel": "toward CBD",
+          "arrow": "→",
+          "gantries": [30],
+          "windowFilter": "morning"
+        },
+        {
+          "id": "eb",
+          "label": "Eastbound",
+          "subLabel": "toward Changi",
+          "arrow": "←",
+          "gantries": [73],
+          "windowFilter": "evening"
+        }
+      ]
+    },
+    "PIE": {
+      "expressway": "PIE",
+      "description": "Bendemeer; slip to CTE; westbound before Eunos",
+      "directions": [
+        {
+          "id": "wb",
+          "label": "Westbound",
+          "subLabel": "toward Tuas",
+          "arrow": "←",
+          "gantries": [32, 37, 38, 42, 45, 65],
+          "windowFilter": "all"
+        }
+      ]
+    },
+    "KPE": {
+      "expressway": "KPE",
+      "description": "Southbound before ECP",
+      "directions": [
+        {
+          "id": "sb",
+          "label": "Southbound",
+          "subLabel": "toward ECP / CBD",
+          "arrow": "↓",
+          "gantries": [50],
+          "windowFilter": "all"
+        }
+      ]
+    },
+    "BKE": {
+      "expressway": "BKE",
+      "description": "Between Dairy Farm Road and PIE",
+      "directions": [
+        {
+          "id": "tpie",
+          "label": "Towards PIE",
+          "subLabel": "southbound",
+          "arrow": "↓",
+          "gantries": [54],
+          "windowFilter": "all"
+        }
+      ]
+    },
+    "MCE": {
+      "expressway": "MCE",
+      "description": "Westbound before Central Blvd; eastbound after Maxwell",
+      "directions": [
+        {
+          "id": "wb",
+          "label": "Westbound",
+          "subLabel": "before Central Blvd",
+          "arrow": "←",
+          "gantries": [90, 92],
+          "windowFilter": "morning"
+        },
+        {
+          "id": "eb",
+          "label": "Eastbound",
+          "subLabel": "after Maxwell",
+          "arrow": "→",
+          "gantries": [91, 93],
+          "windowFilter": "evening"
+        }
+      ]
+    }
   }
 }
