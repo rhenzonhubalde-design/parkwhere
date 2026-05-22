@@ -911,6 +911,23 @@
     background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 22%, transparent);
     border-radius: 14px; color: var(--green); font-size: 13.5px; font-weight: 600;
   }
+  /* "Weekday rates only" caption — replaces the old day-tab toggle, since
+     ERP never runs on Sat/Sun/PH so the tabs were always a no-op. When
+     today is a weekend we surface a green sub-line so the user knows the
+     listed rates are for planning a weekday trip, not today. */
+  .erp-weekday-note {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+    margin: 14px 0 0; padding: 10px 13px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 11px; font-size: 12px; color: var(--text-muted);
+  }
+  .erp-weekday-note b { color: var(--text); font-weight: 700; }
+  .erp-weekday-note .ewn-today {
+    margin-left: auto;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--green-soft); color: var(--green);
+    font-weight: 700; font-size: 11px;
+  }
   /* Direction tabs + info banner — drives home the one-way nature of
      ERP gantries (each gantry charges only one direction of travel). */
   .erp-dir-info {
@@ -1503,7 +1520,7 @@
     tripSubView: 'planner',     // 'planner' | 'rates'  (WS6)
     erpRates: null,             // erp-rates.json
     erpZoneMap: null,           // erp-zone-map.json
-    erpDayType: null,           // 'weekday' | 'sat' | 'sunph' (auto, user-overridable)
+    erpDayType: null,           // 'weekday' | 'sat' | 'sunph' (auto from erpToday())
     erpXway: null,              // selected expressway abbr, or null = list
     erpDirIdx: 0,               // index into selected zone's directions[] (per-direction tab)
     erpSearch: '',
@@ -2984,8 +3001,10 @@
     const cs = state.erpRates.corridors.filter((c) => c.expressway === x);
     const vehBtns = ['car', 'motorcycle', 'heavy'].map((v) =>
       `<button class="erp-tg-btn vehicle-btn ${state.tripVehicle === v ? 'active' : ''}" data-v="${v}">${v === 'car' ? 'Car' : v === 'motorcycle' ? 'Motorbike' : 'Heavy'}</button>`).join('');
-    const dayBtns = ['weekday', 'sat', 'sunph'].map((d) =>
-      `<button class="erp-tg-btn ${dayType === d ? 'active' : ''}" data-day="${d}">${ERP_DAY_LABEL[d]}</button>`).join('');
+    // ERP only operates Mon–Fri (data note: chargingDays = ["Mon"…"Fri"]
+    // and CBD/Orchard cordon = $0 on weekends). Day tabs were just a
+    // pre-canned "free all day" message — surfacing it as a single
+    // inline caption is less clutter.
 
     // Pick a representative direction-set for this expressway. Most have a
     // single corridor entry per expressway, so we read directions from the
@@ -3029,34 +3048,43 @@
       </div>`;
     }
 
-    let tables;
-    if (dayType !== 'weekday') {
-      tables = `<div class="erp-free-msg">${ERP_OK} No ERP charges on ${ERP_DAY_LABEL[dayType]} — free all day.</div>`;
-    } else {
-      tables = cs.map((c) => {
-        const z = zones[c.id] || {};
-        // Filter the corridor's gantry list to only those facing the active
-        // direction (if we have direction metadata).
-        const allGantries = String(c.gantries).split(',').map((s) => s.trim()).filter(Boolean);
-        const shownGantries = dirGantries
-          ? allGantries.filter((g) => dirGantries.has(g))
-          : allGantries;
-        if (dirGantries && !shownGantries.length) return '';      // no gantries for this dir in this corridor
-        const slots = c.windows.filter((w) => w.rate * mult > 0 && filterWin(w)).map((w) => {
-          const active = t.mins >= hhmmToMin(w.start) && t.mins < hhmmToMin(w.end);
-          return `<div class="erp-slot${active ? ' active' : ''}">
-            <span class="es-time">${escapeHtml(w.start)} – ${escapeHtml(w.end)}</span>
-            ${active ? '<span class="es-now">active now</span>' : ''}
-            <span class="es-amt">${erpFmt(w.rate * mult)}</span></div>`;
-        }).join('');
-        const dirSuffix = activeDir ? ` · ${escapeHtml(activeDir.label)}` : '';
-        return `<div class="erp-zone">
-          <div class="erp-zone-h">${escapeHtml(c.id)} · ${escapeHtml(zoneDesc(z.description || c.label))}
-            <small>Gantries ${escapeHtml(shownGantries.join(', '))}${dirSuffix}</small></div>
-          ${slots || `<div class="erp-slot"><span class="es-time" style="color:var(--text-faint)">No priced windows in this direction</span></div>`}
-        </div>`;
-      }).filter(Boolean).join('');
-    }
+    // Rate table — weekday-only (ERP doesn't run Sat/Sun/PH).
+    const tables = cs.map((c) => {
+      const z = zones[c.id] || {};
+      // Filter the corridor's gantry list to only those facing the active
+      // direction (if we have direction metadata).
+      const allGantries = String(c.gantries).split(',').map((s) => s.trim()).filter(Boolean);
+      const shownGantries = dirGantries
+        ? allGantries.filter((g) => dirGantries.has(g))
+        : allGantries;
+      if (dirGantries && !shownGantries.length) return '';      // no gantries for this dir in this corridor
+      const slots = c.windows.filter((w) => w.rate * mult > 0 && filterWin(w)).map((w) => {
+        // "Active now" highlight only fires on actual weekdays; on
+        // Sat/Sun/PH the rate is informational (planning a future trip).
+        const active = dayType === 'weekday'
+          && t.mins >= hhmmToMin(w.start) && t.mins < hhmmToMin(w.end);
+        return `<div class="erp-slot${active ? ' active' : ''}">
+          <span class="es-time">${escapeHtml(w.start)} – ${escapeHtml(w.end)}</span>
+          ${active ? '<span class="es-now">active now</span>' : ''}
+          <span class="es-amt">${erpFmt(w.rate * mult)}</span></div>`;
+      }).join('');
+      const dirSuffix = activeDir ? ` · ${escapeHtml(activeDir.label)}` : '';
+      return `<div class="erp-zone">
+        <div class="erp-zone-h">${escapeHtml(c.id)} · ${escapeHtml(zoneDesc(z.description || c.label))}
+          <small>Gantries ${escapeHtml(shownGantries.join(', '))}${dirSuffix}</small></div>
+        ${slots || `<div class="erp-slot"><span class="es-time" style="color:var(--text-faint)">No priced windows in this direction</span></div>`}
+      </div>`;
+    }).filter(Boolean).join('');
+
+    // "Weekdays only" caption — replaces the old day-tab UI. When today is
+    // Sat/Sun/PH we tag the message so the user knows the rates listed are
+    // for planning a future weekday trip, not what they'd pay right now.
+    const weekdayNote = `<div class="erp-weekday-note">
+      <span><b>Weekday rates</b> · No ERP charges on Sat / Sun / PH</span>
+      ${dayType !== 'weekday'
+        ? `<span class="ewn-today">Today is ${escapeHtml(ERP_DAY_LABEL[dayType])} — free all day</span>`
+        : ''}
+    </div>`;
 
     body.innerHTML = `${nowBlock}
       <button class="erp-back" id="erpBackBtn">${ERP_BACK} All expressways</button>
@@ -3064,8 +3092,8 @@
       ${effLine}
       <div class="erp-toggles">
         <div class="erp-toggle-group">${vehBtns}</div>
-        <div class="erp-toggle-group">${dayBtns}</div>
       </div>
+      ${weekdayNote}
       ${infoBanner}
       ${dirControls}
       ${tables}`;
@@ -3748,9 +3776,6 @@
     if (xwayRow) { state.erpXway = xwayRow.dataset.xway; state.erpDirIdx = 0; renderErpRates(); return; }
     // ERP Rates: back to expressway list
     if (e.target.closest('#erpBackBtn')) { state.erpXway = null; state.erpDirIdx = 0; renderErpRates(); return; }
-    // ERP Rates: day-type toggle
-    const dayBtn = e.target.closest('.erp-tg-btn[data-day]');
-    if (dayBtn) { state.erpDayType = dayBtn.dataset.day; renderErpRates(); return; }
     // ERP Rates: direction tab
     const dirBtn = e.target.closest('.erp-dir-tab[data-diridx]');
     if (dirBtn) { state.erpDirIdx = parseInt(dirBtn.dataset.diridx, 10) || 0; renderErpRates(); return; }
