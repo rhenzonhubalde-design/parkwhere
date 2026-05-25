@@ -883,9 +883,14 @@ function bearingDelta(a, b) {
 }
 // Distribute the route's (traffic-aware) duration across the decoded
 // polyline by cumulative distance → a timestamp + heading per point.
+// We also densify: interpolate any segment longer than ~25 m so a
+// gantry within 50 m of the route is guaranteed to have a sample
+// point within 50 m of it (Google Routes polylines can be 100+ m
+// apart on straight highway stretches, which silently dropped hits).
 function buildTimedPolyline(points, totalSeconds, departure) {
   const n = points.length;
   if (n < 2) return [];
+  const MAX_GAP_M = 25;
   const seg = new Array(n - 1);
   let totalDist = 0;
   for (let i = 0; i < n - 1; i++) {
@@ -893,17 +898,33 @@ function buildTimedPolyline(points, totalSeconds, departure) {
     seg[i] = d; totalDist += d;
   }
   if (totalDist <= 0) return [];
-  const out = []; let cum = 0;
+  const secPerM = totalSeconds / totalDist;
+  const t0 = departure.getTime();
+  const out = [];
+  let cum = 0;
   for (let i = 0; i < n; i++) {
-    const frac = cum / totalDist;
+    const segBearing = i < n - 1
+      ? bearingDeg(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
+      : bearingDeg(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
     out.push({
       lat: points[i][0], lng: points[i][1],
-      bearing: i > 0
-        ? bearingDeg(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1])
-        : (n > 1 ? bearingDeg(points[0][0], points[0][1], points[1][0], points[1][1]) : 0),
-      t: new Date(departure.getTime() + frac * totalSeconds * 1000),
+      bearing: segBearing,
+      t: new Date(t0 + cum * secPerM * 1000),
     });
-    if (i < n - 1) cum += seg[i];
+    if (i < n - 1) {
+      const d = seg[i];
+      const k = Math.ceil(d / MAX_GAP_M);  // number of sub-segments
+      for (let s = 1; s < k; s++) {
+        const frac = s / k;
+        out.push({
+          lat: points[i][0] + (points[i + 1][0] - points[i][0]) * frac,
+          lng: points[i][1] + (points[i + 1][1] - points[i][1]) * frac,
+          bearing: segBearing,
+          t: new Date(t0 + (cum + d * frac) * secPerM * 1000),
+        });
+      }
+      cum += d;
+    }
   }
   return out;
 }
