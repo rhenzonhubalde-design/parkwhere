@@ -236,6 +236,120 @@ test.describe('regression: pre-fix perpendicular logic rejected southbound CTE',
   });
 });
 
+test.describe('polyline densification — sparse Google polylines must still hit gantries', () => {
+  // Mirrors server.js buildTimedPolyline: any segment > 25 m gets
+  // interpolated so consecutive samples are ≤ 25 m apart.
+  function buildTimedPolyline(points, totalSeconds, departure) {
+    const n = points.length;
+    if (n < 2) return [];
+    const MAX_GAP_M = 25;
+    const seg = new Array(n - 1);
+    let totalDist = 0;
+    for (let i = 0; i < n - 1; i++) {
+      const d = haversineM(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1]);
+      seg[i] = d; totalDist += d;
+    }
+    if (totalDist <= 0) return [];
+    const secPerM = totalSeconds / totalDist;
+    const t0 = departure.getTime();
+    const out = [];
+    let cum = 0;
+    for (let i = 0; i < n; i++) {
+      const segBearing = i < n - 1
+        ? bearingDeg(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
+        : bearingDeg(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+      out.push({ lat: points[i][0], lng: points[i][1], bearing: segBearing, t: new Date(t0 + cum * secPerM * 1000) });
+      if (i < n - 1) {
+        const d = seg[i];
+        const k = Math.ceil(d / MAX_GAP_M);
+        for (let s = 1; s < k; s++) {
+          const frac = s / k;
+          out.push({
+            lat: points[i][0] + (points[i + 1][0] - points[i][0]) * frac,
+            lng: points[i][1] + (points[i + 1][1] - points[i][1]) * frac,
+            bearing: segBearing,
+            t: new Date(t0 + (cum + d * frac) * secPerM * 1000),
+          });
+        }
+        cum += d;
+      }
+    }
+    return out;
+  }
+  function findGantryHits(timed) {
+    const hits = [];
+    for (const g of GANTRIES) {
+      const dir = GANTRY_DIRECTION.get(String(g.gantryId));
+      if (!dir) continue;
+      const target = directionTargetBearing(dir, g);
+      if (target == null) continue;
+      let best = null;
+      for (const pt of timed) {
+        if (haversineM(pt.lat, pt.lng, g.lat, g.lng) > PROX_M) continue;
+        if (bearingDelta(pt.bearing, target) > DIR_TOL) continue;
+        if (!best || pt.t < best.t) best = pt;
+      }
+      if (best) hits.push({ gantry: g, arrival: best.t, direction: dir });
+    }
+    return hits;
+  }
+
+  test('every densified segment is ≤ 25 m', () => {
+    // Two points 500 m apart (typical sparse highway stretch).
+    const a = [1.4307, 103.8329];
+    const b = [1.4262, 103.8329]; // ~500 m due south
+    const dense = buildTimedPolyline([a, b], 60, new Date());
+    for (let i = 1; i < dense.length; i++) {
+      const d = haversineM(dense[i - 1].lat, dense[i - 1].lng, dense[i].lat, dense[i].lng);
+      assert.ok(d <= 25 + 1e-6, `segment ${i} is ${d.toFixed(1)} m, expected ≤ 25 m`);
+    }
+  });
+
+  test('regression: a 200 m straight polyline THROUGH CTE-33 would miss without densification', () => {
+    // Build a "Google-sparse" polyline of just 2 points: 200 m north and
+    // 200 m south of CTE-33, going due south. Without densification the
+    // closest sample point is 200 m from the gantry — past PROX_M.
+    const g = GANTRIES.find((x) => x.gantryId === '33');
+    const north = [g.lat + 200 / 111320, g.lng];
+    const south = [g.lat - 200 / 111320, g.lng];
+
+    // Without densification (mimic original behavior — just 2 points)
+    const sparse = [
+      { lat: north[0], lng: north[1], bearing: 180, t: new Date() },
+      { lat: south[0], lng: south[1], bearing: 180, t: new Date(Date.now() + 30000) },
+    ];
+    const minDist = Math.min(
+      haversineM(sparse[0].lat, sparse[0].lng, g.lat, g.lng),
+      haversineM(sparse[1].lat, sparse[1].lng, g.lat, g.lng)
+    );
+    assert.ok(minDist > PROX_M, `sparse min-dist ${minDist.toFixed(0)}m should be > ${PROX_M}m (proves the bug)`);
+
+    // With densification: at least one interpolated point falls within 50m.
+    const dense = buildTimedPolyline([north, south], 30, new Date());
+    const hits = findGantryHits(dense);
+    assert.ok(hits.find((h) => h.gantry.gantryId === '33'),
+      'densified polyline must register the CTE-33 hit');
+  });
+
+  test('user scenario: a coarse southbound polyline past CTE-33 and CTE-34 charges both', () => {
+    const g33 = GANTRIES.find((x) => x.gantryId === '33');
+    const g34 = GANTRIES.find((x) => x.gantryId === '34');
+    // Three points 500 m apart, route line passing directly over both gantries.
+    // Bearings end up as the leg bearing from densification.
+    const route = [
+      [g33.lat + 500 / 111320, g33.lng], // 500 m north of g33
+      [g33.lat,                g33.lng], // at g33
+      [g34.lat,                g34.lng], // at g34 (1.2 km south)
+      [g34.lat - 500 / 111320, g34.lng], // 500 m south
+    ];
+    const dense = buildTimedPolyline(route, 120, new Date());
+    const hits = findGantryHits(dense);
+    const hitIds = hits.map((h) => h.gantry.gantryId).sort();
+    assert.ok(hitIds.includes('33'), `expected CTE-33 hit, got ${hitIds.join(',') || 'none'}`);
+    assert.ok(hitIds.includes('34'), `expected CTE-34 hit, got ${hitIds.join(',') || 'none'}`);
+  });
+});
+
 test.describe('rate-window filtering by direction', () => {
   function filterWindows(windows, f) {
     if (!f || f === 'all') return windows;
