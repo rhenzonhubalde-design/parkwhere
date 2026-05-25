@@ -860,6 +860,81 @@ try {
 const CBD_LAT = 1.283;
 const CBD_LNG = 103.851;
 
+// Fetch live gantry coordinates from LTA DataMall and add any that are
+// missing from the static geojson (30, 31, 35, 46, 50, 51, 54, 67, 68, 73).
+// Called once at startup; falls back silently if the API is unreachable.
+async function refreshERPGantryCoordsFromLTA() {
+  if (!LTA_API_KEY) return;
+  try {
+    const coordMap = new Map(); // EquipmentID(str) → { lat, lng }
+    let skip = 0;
+    for (;;) {
+      const res = await fetch(
+        `https://datamall2.mytransport.sg/ltaodataservice/ERPGantry?$skip=${skip}`,
+        { headers: { AccountKey: LTA_API_KEY, Accept: 'application/json' } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const rows = data.value || [];
+      if (!rows.length) break;
+      for (const r of rows) {
+        const id = String(r.EquipmentID || '').trim();
+        if (id && r.Latitude && r.Longitude && !coordMap.has(id)) {
+          coordMap.set(id, { lat: +r.Latitude, lng: +r.Longitude });
+        }
+      }
+      if (rows.length < 500) break;
+      skip += 500;
+    }
+    if (!coordMap.size) {
+      console.log('[erp] LTA gantry refresh: no rows returned (possibly off-peak / weekend)');
+      return;
+    }
+
+    // Update coordinates of existing gantries when LTA differs noticeably.
+    let updated = 0;
+    for (const g of ERP_GANTRIES) {
+      const c = coordMap.get(String(g.gantryId));
+      if (c && (Math.abs(c.lat - g.lat) > 0.0001 || Math.abs(c.lng - g.lng) > 0.0001)) {
+        g.lat = c.lat; g.lng = c.lng; updated++;
+      }
+    }
+
+    // Add gantries known to the zone-map + LTA but absent from the geojson
+    // (31, 35, 46, 51, 67, 68, 50, 54, 30, 73 were skipped by the shapefile
+    // build because the LTA file didn't ERP-tag those records).
+    const existingIds = new Set(ERP_GANTRIES.map((g) => String(g.gantryId)));
+    let added = 0;
+    for (const [zoneId, zone] of Object.entries(ERP_ZONE_MAP?.zones || {})) {
+      const corr = ERP_RATES?.corridors.find((c) => c.id === zoneId);
+      for (const dir of zone.directions || []) {
+        for (const gid of dir.gantries || []) {
+          const id = String(gid);
+          if (existingIds.has(id)) continue;
+          const c = coordMap.get(id);
+          if (!c) continue;
+          ERP_GANTRIES.push({
+            gantryId: id,
+            ZoneID: zoneId,
+            expressway: zone.expressway || zoneId,
+            name: corr?.label || zoneId,
+            spanBearing: 0,
+            lat: c.lat, lng: c.lng,
+          });
+          if (!GANTRY_DIRECTION.has(id)) GANTRY_DIRECTION.set(id, { ...dir, zoneId });
+          existingIds.add(id);
+          added++;
+        }
+      }
+    }
+    console.log(`[erp] LTA gantry refresh: ${coordMap.size} from DataMall, ` +
+      `${updated} coords updated, ${added} new gantries added (total: ${ERP_GANTRIES.length})`);
+  } catch (e) {
+    console.warn('[erp] LTA gantry refresh failed (using static geojson):', e.message);
+  }
+}
+refreshERPGantryCoordsFromLTA();
+
 // metres between two WGS84 points
 function haversineM(aLat, aLng, bLat, bLng) {
   const R = 6371000;

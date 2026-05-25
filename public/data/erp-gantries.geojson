@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "_note": "Built from LTA ERPGantry_Mar2026 shapefile (SVY21→WGS84). ZoneID = corridor id in erp-rates.json; rate windows live there. Travel direction is validated as roughly perpendicular to spanBearing. confidence:\"low\" = number matched a non-ERP-tagged record (LTA mistag) — used but less certain. TODO: refresh when LTA publishes a new ERPGantry package.",
+  "_note": "Built from LTA ERPGantry_May2026 shapefile (SVY21→WGS84). ZoneID = corridor id in erp-rates.json; rate windows live there. Direction validated via directionTargetBearing() in server.js (not spanBearing). confidence:\"low\" = anonymous/UNK ERP feature matched geographically; coordinates may be off by up to ~50 m and will be corrected by DataMall refresh at startup.",
   "effectiveFrom": "2026-03-23",
   "features": [
     {
@@ -324,6 +324,166 @@
           103.856561,
           1.271165
         ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "31",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 295.6,
+        "confidence": "low",
+        "source": "ERP#662 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.861782, 1.333189]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "35",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 69.7,
+        "confidence": "low",
+        "source": "ERP#171 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.859519, 1.346641]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "46",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 87.9,
+        "confidence": "low",
+        "source": "ERP#663 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.862578, 1.333378]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "51",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 129.9,
+        "confidence": "low",
+        "source": "ERP#855 UNK May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.853562, 1.302662]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "67",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 85.6,
+        "confidence": "low",
+        "source": "ERP#548 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.862281, 1.332751]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "68",
+        "ZoneID": "CTE",
+        "expressway": "CTE",
+        "name": "CTE (after Braddell / Serangoon / Balestier; AMK; nb before Braddell)",
+        "spanBearing": 136.7,
+        "confidence": "low",
+        "source": "ERP#774 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.860600, 1.326014]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "30",
+        "ZoneID": "ECP",
+        "expressway": "ECP",
+        "name": "ECP (City; eastbound before KPE)",
+        "spanBearing": 179.4,
+        "confidence": "low",
+        "source": "ERP#660 UNK May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.872157, 1.295325]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "73",
+        "ZoneID": "ECP",
+        "expressway": "ECP",
+        "name": "ECP (City; eastbound before KPE)",
+        "spanBearing": 178.0,
+        "confidence": "low",
+        "source": "ERP#766 UNK May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.876772, 1.295259]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "50",
+        "ZoneID": "KPE",
+        "expressway": "KPE",
+        "name": "KPE (southbound before ECP)",
+        "spanBearing": 90.0,
+        "confidence": "low",
+        "source": "approximate — not found in May2026 shapefile; DataMall refresh will correct"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.897000, 1.347000]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gantryId": "54",
+        "ZoneID": "BKE",
+        "expressway": "BKE",
+        "name": "BKE (between Dairy Farm Road and PIE)",
+        "spanBearing": 75.7,
+        "confidence": "low",
+        "source": "ERP#735 anonymous May2026 shapefile"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.769747, 1.353154]
       }
     }
   ]
