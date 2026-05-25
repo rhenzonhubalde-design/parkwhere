@@ -1170,6 +1170,16 @@
     font-size: 11px; color: var(--text-muted); font-weight: 500;
     padding-left: 21px; font-style: italic;
   }
+  .erp-tip {
+    display: flex; align-items: center; gap: 8px;
+    margin: 6px 0 2px; padding: 8px 12px;
+    background: rgba(34, 197, 94, 0.10);
+    border: 1px solid rgba(34, 197, 94, 0.32);
+    border-radius: 10px;
+    font-size: 12.5px; font-weight: 600; color: var(--green);
+    line-height: 1.35;
+  }
+  .erp-tip .erp-tip-ico { font-size: 14px; flex-shrink: 0; }
   .erp-noalt {
     text-align: center; font-size: 12.5px; color: var(--text-muted);
     font-weight: 500; margin: 12px 0 4px; padding: 10px 14px;
@@ -2779,11 +2789,16 @@
         <span class="erp-amt">$${c.rate.toFixed(2)}</span>
       </div>`).join('');
     const cls = total > 0 ? 'warn' : 'ok';
+    const suggestion = (erp.suggestions && erp.suggestions[0]) || null;
+    const tipHtml = suggestion
+      ? `<div class="erp-tip"><span class="erp-tip-ico">💡</span><span>${escapeHtml(suggestion.note)}</span></div>`
+      : '';
     return `
       <div class="route-erp ${cls}">
         <div class="erp-top">${total > 0 ? ERP_ICON : OK_ICON}<span>Est. ERP <strong>$${total.toFixed(2)}</strong></span>
           <span class="erp-sub">leave ~${escapeHtml(erp.sgTime)}</span></div>
         ${lines}
+        ${tipHtml}
         <div class="erp-foot">Charged at each gantry’s estimated arrival time. Arrival times are estimates.</div>
       </div>`;
   }

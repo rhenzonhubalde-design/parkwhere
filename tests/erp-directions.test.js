@@ -380,3 +380,99 @@ test.describe('rate-window filtering by direction', () => {
     assert.deepEqual(filterWindows(AYE.windows, 'all'), AYE.windows);
   });
 });
+
+test.describe('cheaper-departure suggestions', () => {
+  // Mirror scoreERPForDeparture + findCheaperDepartures from server.js so the
+  // savings-search logic can be unit-tested without spinning up the server.
+  function sgPartsOf(date) {
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    const d = new Date(utc + 8 * 3600000);
+    const dow = d.getDay();
+    return {
+      dow, isWeekday: dow >= 1 && dow <= 5,
+      minutes: d.getHours() * 60 + d.getMinutes(),
+      hhmm: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+    };
+  }
+  function toMinHm(s) { const [h, m] = s.split(':').map(Number); return h * 60 + m; }
+  function rateAt(corridor, mins, isWeekday, mult, filter) {
+    if (!isWeekday) return 0;
+    const wins = filter === 'all' ? corridor.windows : corridor.windows.filter((w) => {
+      const s = toMinHm(w.start);
+      return filter === 'morning' ? s < 720 : s >= 720;
+    });
+    const w = wins.find((x) => mins >= toMinHm(x.start) && mins < toMinHm(x.end));
+    return w ? +(w.rate * mult).toFixed(2) : 0;
+  }
+  function score(hits, departure, vehicle) {
+    const mult = RATES.vehicleMultipliers[vehicle] ?? 1.0;
+    const t0 = departure.getTime();
+    const byZone = new Map();
+    for (const h of hits) {
+      const arrival = new Date(t0 + h.msOffset);
+      const cur = byZone.get(h.zone);
+      if (!cur || arrival < cur.arrival) byZone.set(h.zone, { ...h, arrival });
+    }
+    let total = 0;
+    for (const h of byZone.values()) {
+      const corr = RATES.corridors.find((c) => c.id === h.zone);
+      const ap = sgPartsOf(h.arrival);
+      total += rateAt(corr, ap.minutes, ap.isWeekday, mult, h.windowFilter);
+    }
+    return +total.toFixed(2);
+  }
+  function findSavings(hits, departure, vehicle, now = Date.now()) {
+    const originalTotal = score(hits, departure, vehicle);
+    if (originalTotal <= 0) return [];
+    const out = [];
+    for (let offset = -90; offset <= 90; offset += 5) {
+      if (offset === 0) continue;
+      const t = new Date(departure.getTime() + offset * 60000);
+      if (t.getTime() < now) continue;
+      const total = score(hits, t, vehicle);
+      const savings = +(originalTotal - total).toFixed(2);
+      if (savings >= 0.5) out.push({ departureTime: sgPartsOf(t).hhmm, offsetMin: offset, total, savings });
+    }
+    if (!out.length) return [];
+    out.sort((a, b) => b.savings - a.savings || Math.abs(a.offsetMin) - Math.abs(b.offsetMin));
+    return [out[0]];
+  }
+
+  // Fixture: weekday 2026-05-25 (Monday). Departure at 08:00 SGT
+  // (Singapore is UTC+8; 08:00 SGT = 00:00 UTC).
+  const monday0800 = new Date('2026-05-25T00:00:00Z');
+  // A single CTE southbound hit arriving 10 min after departure (i.e. 08:10).
+  const cteHit = { zone: 'CTE', windowFilter: 'morning', msOffset: 10 * 60 * 1000 };
+
+  test('returns empty array when total is already $0', () => {
+    // Sunday → all rates zero out
+    const sunday0800 = new Date('2026-05-24T00:00:00Z');
+    const out = findSavings([cteHit], sunday0800, 'car', sunday0800.getTime());
+    assert.deepEqual(out, []);
+  });
+
+  test('suggests an earlier departure that skips the rate window', () => {
+    // 08:10 arrival hits the 08:05–08:30 window ($3). With "now" set 4h
+    // before the planned departure, earlier candidates are eligible —
+    // leaving at ~07:15 puts the arrival at 07:25, before the 07:30
+    // window opens → $0 → save $3.
+    const fakeNow = monday0800.getTime() - 4 * 60 * 60 * 1000;
+    const out = findSavings([cteHit], monday0800, 'car', fakeNow);
+    assert.equal(out.length, 1, 'should produce one suggestion');
+    assert.ok(out[0].savings > 0, `savings should be positive, got ${out[0].savings}`);
+    assert.match(out[0].departureTime, /^\d{2}:\d{2}$/);
+  });
+
+  test('skips departure times that are in the past', () => {
+    // Pretend "now" is later than the candidate departure so all earlier
+    // candidates are filtered out.
+    const fakeNow = monday0800.getTime() + 30 * 60 * 1000; // 08:30 "now"
+    const out = findSavings([cteHit], monday0800, 'car', fakeNow);
+    // Any suggestion returned must be ≥ "now"
+    for (const s of out) {
+      const [h, m] = s.departureTime.split(':').map(Number);
+      const candidateMs = monday0800.getTime() + (h * 60 + m - 8 * 60) * 60 * 1000;
+      assert.ok(candidateMs >= fakeNow, `candidate ${s.departureTime} should not be before fake-now`);
+    }
+  });
+});

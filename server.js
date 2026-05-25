@@ -1101,6 +1101,84 @@ function gantryRate(corridor, arrivalParts, mult) {
   return { rate: +(w.rate * mult).toFixed(2), window: `${w.start}–${w.end}` };
 }
 
+// Score the route's ERP cost for a given departure time, reusing pre-computed
+// gantry hits (each hit carries `msOffset` — milliseconds from the polyline's
+// original t0). Returns { total, corridors } in the same shape estimateERP
+// uses; called once for the actual departure and many times by the savings
+// search.
+function scoreERPForDeparture(hitsWithOffset, departure, vehicle) {
+  const mult = ERP_RATES.vehicleMultipliers[vehicle] ?? 1.0;
+  const t0 = departure.getTime();
+  const byZone = new Map();
+  for (const h of hitsWithOffset) {
+    const arrival = new Date(t0 + h.msOffset);
+    const cur = byZone.get(h.gantry.ZoneID);
+    if (!cur || arrival < cur.arrival) byZone.set(h.gantry.ZoneID, { ...h, arrival });
+  }
+  let total = 0;
+  const corridors = [];
+  for (const h of byZone.values()) {
+    const corr = ERP_RATES.corridors.find((c) => c.id === h.gantry.ZoneID);
+    if (!corr) continue;
+    const ap = sgParts(h.arrival);
+    const dirCorr = { ...corr, windows: filterWindowsByDirection(corr.windows, h.direction.windowFilter) };
+    const { rate, window } = gantryRate(dirCorr, ap, mult);
+    if (rate > 0) total += rate;
+    corridors.push({
+      expressway: h.gantry.expressway,
+      label:      h.gantry.name,
+      gantryId:   h.gantry.gantryId,
+      direction:  h.direction.label,
+      arrival:    ap.hhmm,
+      dayType:    ap.isWeekday ? 'Weekday' : (ap.dow === 6 ? 'Saturday' : 'Sunday/PH'),
+      rate,
+      free:       rate === 0,
+      window,
+    });
+  }
+  corridors.sort((a, b) => b.rate - a.rate);
+  return { total: +total.toFixed(2), corridors };
+}
+
+// Suggest a cheaper departure time. Searches ±90 min around the user's
+// departure in 5-min steps; picks the candidate with the largest savings
+// (ties broken by smaller time-shift). Past times are skipped. Returns []
+// when nothing saves at least $0.50.
+//
+// Approximation: holds the trip duration constant. Off-peak travel is
+// faster than peak, so for an earlier/later departure the real arrival is
+// a few minutes sooner than what we score. Acceptable for a suggestion.
+function findCheaperDepartures(hitsWithOffset, originalDeparture, originalTotal, vehicle) {
+  if (originalTotal <= 0) return [];
+  const STEP_MIN = 5, WINDOW_MIN = 90, MIN_SAVE = 0.5;
+  const now = Date.now();
+  const candidates = [];
+  for (let offset = -WINDOW_MIN; offset <= WINDOW_MIN; offset += STEP_MIN) {
+    if (offset === 0) continue;
+    const t = new Date(originalDeparture.getTime() + offset * 60000);
+    if (t.getTime() < now) continue;
+    const r = scoreERPForDeparture(hitsWithOffset, t, vehicle);
+    const savings = +(originalTotal - r.total).toFixed(2);
+    if (savings >= MIN_SAVE) {
+      candidates.push({ departureTime: sgParts(t).hhmm, offsetMin: offset, total: r.total, savings });
+    }
+  }
+  if (!candidates.length) return [];
+  candidates.sort((a, b) => b.savings - a.savings || Math.abs(a.offsetMin) - Math.abs(b.offsetMin));
+  const best = candidates[0];
+  const direction = best.offsetMin > 0 ? 'later' : 'earlier';
+  const offsetAbs = Math.abs(best.offsetMin);
+  return [{
+    departureTime: best.departureTime,
+    offsetMin:     best.offsetMin,
+    total:         best.total,
+    savings:       best.savings,
+    note:          best.total === 0
+      ? `Leave at ${best.departureTime} (${offsetAbs} min ${direction}) to skip ERP entirely — save $${best.savings.toFixed(2)}.`
+      : `Leave at ${best.departureTime} (${offsetAbs} min ${direction}) to save $${best.savings.toFixed(2)}.`,
+  }];
+}
+
 // Estimate ERP from the actual route geometry. Each priced gantry the route
 // physically crosses (direction-validated) is charged at the *estimated
 // arrival time at that gantry*, not the departure time.
@@ -1109,7 +1187,6 @@ function gantryRate(corridor, arrivalParts, mult) {
 // registered (useful for verifying gantry coordinates match real routes).
 function estimateERP(decodedPts, durationSec, vehicle, debug = false) {
   if (!ERP_RATES) return null;
-  const mult = ERP_RATES.vehicleMultipliers[vehicle] ?? 1.0;
   const departure = new Date();
   const dep = sgParts(departure);
 
@@ -1154,39 +1231,16 @@ function estimateERP(decodedPts, durationSec, vehicle, debug = false) {
     };
   }
 
-  // One charge per corridor (our rates are corridor-level): keep the
-  // earliest-arrival gantry hit for each ZoneID.
-  const byZone = new Map();
-  for (const h of hits) {
-    const cur = byZone.get(h.gantry.ZoneID);
-    if (!cur || h.arrival < cur.arrival) byZone.set(h.gantry.ZoneID, h);
-  }
+  // Enrich hits with offset-from-departure so scoreERPForDeparture can
+  // recompute arrival times for any candidate departure.
+  const t0 = departure.getTime();
+  const hitsWithOffset = hits.map((h) => ({ ...h, msOffset: h.arrival.getTime() - t0 }));
 
-  const corridors = [];
-  let total = 0;
-  for (const h of byZone.values()) {
-    const corr = ERP_RATES.corridors.find((c) => c.id === h.gantry.ZoneID);
-    if (!corr) continue;
-    const ap = sgParts(h.arrival);
-    // Only the rate windows for the matched direction apply (e.g. CTE
-    // southbound morning windows, not the northbound evening ones).
-    const dirCorr = { ...corr, windows: filterWindowsByDirection(corr.windows, h.direction.windowFilter) };
-    const { rate, window } = gantryRate(dirCorr, ap, mult);
-    if (rate > 0) total += rate;
-    corridors.push({
-      expressway: h.gantry.expressway,
-      label:      h.gantry.name,
-      gantryId:   h.gantry.gantryId,
-      direction:  h.direction.label,
-      arrival:    ap.hhmm,
-      dayType:    ap.isWeekday ? 'Weekday' : (ap.dow === 6 ? 'Saturday' : 'Sunday/PH'),
-      rate,
-      free:       rate === 0,
-      window,
-    });
-  }
-  corridors.sort((a, b) => b.rate - a.rate);
-  total = +total.toFixed(2);
+  const scored = scoreERPForDeparture(hitsWithOffset, departure, vehicle);
+  const total = scored.total;
+  const corridors = scored.corridors;
+
+  const suggestions = findCheaperDepartures(hitsWithOffset, departure, total, vehicle);
 
   const result = {
     charging: total > 0,
@@ -1194,6 +1248,7 @@ function estimateERP(decodedPts, durationSec, vehicle, debug = false) {
     estLow: total,
     estHigh: total,
     corridors,
+    suggestions,
     reason: total > 0
       ? 'ERP estimated at each gantry’s arrival time.'
       : 'Passes ERP gantries but all free at your estimated arrival time.',
