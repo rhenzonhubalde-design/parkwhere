@@ -1029,13 +1029,47 @@ function gantryRate(corridor, arrivalParts, mult) {
 // Estimate ERP from the actual route geometry. Each priced gantry the route
 // physically crosses (direction-validated) is charged at the *estimated
 // arrival time at that gantry*, not the departure time.
-function estimateERP(decodedPts, durationSec, vehicle) {
+// debug=true adds a _diagnostics array showing closest approach + bearing
+// delta for every gantry so callers can see exactly why hits are or aren't
+// registered (useful for verifying gantry coordinates match real routes).
+function estimateERP(decodedPts, durationSec, vehicle, debug = false) {
   if (!ERP_RATES) return null;
   const mult = ERP_RATES.vehicleMultipliers[vehicle] ?? 1.0;
   const departure = new Date();
   const dep = sgParts(departure);
 
   const timed = buildTimedPolyline(decodedPts || [], durationSec || 0, departure);
+
+  // Optional diagnostic: per-gantry closest approach (minDist, bearing at
+  // closest point, direction target, whether it passed each gate).
+  let diagnostics;
+  if (debug) {
+    diagnostics = ERP_GANTRIES.map((g) => {
+      const dir = GANTRY_DIRECTION.get(String(g.gantryId));
+      const target = dir ? directionTargetBearing(dir, g) : null;
+      let minDist = Infinity, closestBearing = null;
+      for (const pt of timed) {
+        const d = haversineM(pt.lat, pt.lng, g.lat, g.lng);
+        if (d < minDist) { minDist = d; closestBearing = pt.bearing; }
+      }
+      const bearingDiff = (target != null && closestBearing != null)
+        ? +bearingDelta(closestBearing, target).toFixed(1) : null;
+      return {
+        gantryId: g.gantryId,
+        expressway: g.expressway,
+        lat: g.lat, lng: g.lng,
+        dirId: dir?.id ?? null,
+        target,
+        minDistM: +minDist.toFixed(1),
+        closestBearing: closestBearing != null ? +closestBearing.toFixed(1) : null,
+        bearingDiff,
+        passedProximity: minDist <= 50,
+        passedDirection: bearingDiff != null ? bearingDiff <= 60 : false,
+        wouldHit: minDist <= 50 && (bearingDiff != null && bearingDiff <= 60),
+      };
+    });
+  }
+
   const hits = findGantryHits(timed);
 
   if (hits.length === 0) {
@@ -1079,7 +1113,7 @@ function estimateERP(decodedPts, durationSec, vehicle) {
   corridors.sort((a, b) => b.rate - a.rate);
   total = +total.toFixed(2);
 
-  return {
+  const result = {
     charging: total > 0,
     sgTime: dep.hhmm,
     estLow: total,
@@ -1089,6 +1123,8 @@ function estimateERP(decodedPts, durationSec, vehicle) {
       ? 'ERP estimated at each gantry’s arrival time.'
       : 'Passes ERP gantries but all free at your estimated arrival time.',
   };
+  if (debug && diagnostics) result._diagnostics = diagnostics;
+  return result;
 }
 
 app.get('/api/directions', async (req, res) => {
@@ -1098,6 +1134,7 @@ app.get('/api/directions', async (req, res) => {
   const { olat, olng, dlat, dlng } = req.query;
   const vehicle = ['car', 'motorcycle', 'heavy'].includes(req.query.vehicle)
     ? req.query.vehicle : 'car';
+  const erpDebug = req.query.debug === '1';
   if (!olat || !olng || !dlat || !dlng) {
     return res.status(400).json({ error: 'Missing coordinates: need olat, olng, dlat, dlng' });
   }
@@ -1191,7 +1228,7 @@ app.get('/api/directions', async (req, res) => {
     const enc = route.polyline && route.polyline.encodedPolyline;
     const fullPts = enc ? decodePolyline(enc) : [];
     const durationSec = parseInt((route.duration || '0s'), 10);
-    const erp = estimateERP(fullPts, durationSec, vehicle);
+    const erp = estimateERP(fullPts, durationSec, vehicle, erpDebug);
     return {
       label,
       summary:       route.description || '',
