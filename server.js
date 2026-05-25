@@ -831,6 +831,35 @@ try {
   console.warn('[erp] could not load erp-gantries.geojson:', e.message);
 }
 
+// Per-direction gantry config (which gantry charges which direction, plus a
+// morning/evening/all filter on rate windows). The LTA shapefile's spanBearing
+// values are inconsistent — some encode the gantry bar (⟂ road), others the
+// road axis itself — so geometric direction inference from spanBearing alone
+// silently fails on corridors like CTE (sb gantries 33/34 have ~N–S spans,
+// making the perpendicular check reject every southbound vehicle). Use the
+// authoritative direction table instead.
+let ERP_ZONE_MAP = null;
+const GANTRY_DIRECTION = new Map(); // gantryId(str) → direction config
+try {
+  ERP_ZONE_MAP = JSON.parse(
+    require('fs').readFileSync(path.join(__dirname, 'public', 'data', 'erp-zone-map.json'), 'utf8')
+  );
+  for (const [zoneId, zone] of Object.entries(ERP_ZONE_MAP.zones || {})) {
+    for (const dir of zone.directions || []) {
+      for (const gid of dir.gantries || []) {
+        GANTRY_DIRECTION.set(String(gid), { ...dir, zoneId });
+      }
+    }
+  }
+  console.log(`[erp] loaded zone map (${Object.keys(ERP_ZONE_MAP.zones || {}).length} zones, ${GANTRY_DIRECTION.size} directional gantries)`);
+} catch (e) {
+  console.warn('[erp] could not load erp-zone-map.json:', e.message);
+}
+
+// CBD reference point for "citybound" direction calculations (Raffles Place-ish).
+const CBD_LAT = 1.283;
+const CBD_LNG = 103.851;
+
 // metres between two WGS84 points
 function haversineM(aLat, aLng, bLat, bLng) {
   const R = 6371000;
@@ -878,26 +907,63 @@ function buildTimedPolyline(points, totalSeconds, departure) {
   }
   return out;
 }
-// Gantries the route actually passes: within 40 m of a timed point and
-// crossing within ±50° of perpendicular to the gantry span.
+// Canonical bearing a vehicle must have to be considered moving in the
+// gantry's charging direction. The opposite carriageway is filtered out
+// because its bearing is ~180° away from this target.
+function directionTargetBearing(dir, gantry) {
+  switch (dir.id) {
+    case 'sb': return 180;
+    case 'nb': return 0;
+    case 'wb': return 270;
+    case 'eb': return 90;
+    case 'cb': return bearingDeg(gantry.lat, gantry.lng, CBD_LAT, CBD_LNG);
+    default:
+      switch (dir.arrow) {
+        case '↓': return 180;
+        case '↑': return 0;
+        case '←': return 270;
+        case '→': return 90;
+        default:  return null;
+      }
+  }
+}
+
+// Gantries the route actually passes: within 50 m of a timed point AND
+// moving in the gantry's charging direction (per erp-zone-map.json).
+// Direction is validated against the configured direction's canonical
+// bearing, not the inconsistent spanBearing field — that's the fix for
+// the CTE southbound under-charge bug.
 function findGantryHits(timed) {
-  const TOL = 50;
+  const PROX_M = 50;
+  const DIR_TOL = 60;          // accept vehicles within ±60° of the charging axis
   const hits = [];
   for (const g of ERP_GANTRIES) {
+    const dir = GANTRY_DIRECTION.get(String(g.gantryId));
+    if (!dir) continue;        // no direction config → can't charge it correctly
+    const target = directionTargetBearing(dir, g);
+    if (target == null) continue;
     let best = null;
     for (const pt of timed) {
-      if (haversineM(pt.lat, pt.lng, g.lat, g.lng) > 40) continue;
-      // perpendicular to the span ≈ the travel axis through the gantry
-      const perpA = (g.spanBearing + 90) % 360;
-      const perpB = (g.spanBearing + 270) % 360;
-      const crosses = Math.min(bearingDelta(pt.bearing, perpA),
-                               bearingDelta(pt.bearing, perpB)) <= TOL;
-      if (!crosses) continue;
+      if (haversineM(pt.lat, pt.lng, g.lat, g.lng) > PROX_M) continue;
+      if (bearingDelta(pt.bearing, target) > DIR_TOL) continue;
       if (!best || pt.t < best.t) best = pt;
     }
-    if (best) hits.push({ gantry: g, arrival: best.t });
+    if (best) hits.push({ gantry: g, arrival: best.t, direction: dir });
   }
   return hits;
+}
+
+// Narrow a corridor's rate windows to those that apply in the matched
+// direction (morning rush vs evening rush). Mirrors the client's
+// per-direction filter in the ERP rates view.
+function filterWindowsByDirection(windows, windowFilter) {
+  if (!windowFilter || windowFilter === 'all') return windows;
+  return windows.filter((w) => {
+    const startMin = toMin(w.start);
+    if (windowFilter === 'morning') return startMin < 12 * 60;
+    if (windowFilter === 'evening') return startMin >= 12 * 60;
+    return true;
+  });
 }
 function sgParts(date) {
   const utc = date.getTime() + date.getTimezoneOffset() * 60000;
@@ -972,12 +1038,16 @@ function estimateERP(decodedPts, durationSec, vehicle) {
     const corr = ERP_RATES.corridors.find((c) => c.id === h.gantry.ZoneID);
     if (!corr) continue;
     const ap = sgParts(h.arrival);
-    const { rate, window } = gantryRate(corr, ap, mult);
+    // Only the rate windows for the matched direction apply (e.g. CTE
+    // southbound morning windows, not the northbound evening ones).
+    const dirCorr = { ...corr, windows: filterWindowsByDirection(corr.windows, h.direction.windowFilter) };
+    const { rate, window } = gantryRate(dirCorr, ap, mult);
     if (rate > 0) total += rate;
     corridors.push({
       expressway: h.gantry.expressway,
       label:      h.gantry.name,
       gantryId:   h.gantry.gantryId,
+      direction:  h.direction.label,
       arrival:    ap.hhmm,
       dayType:    ap.isWeekday ? 'Weekday' : (ap.dow === 6 ? 'Saturday' : 'Sunday/PH'),
       rate,
