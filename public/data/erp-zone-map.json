@@ -39,7 +39,7 @@
           "label": "Southbound",
           "subLabel": "toward CBD",
           "arrow": "↓",
-          "gantries": [31, 33, 34, 35, 46, 51],
+          "gantries": [31, 33, 34, 35, 51],
           "windowFilter": "morning"
         },
         {
@@ -47,7 +47,7 @@
           "label": "Northbound",
           "subLabel": "toward AMK / SLE",
           "arrow": "↑",
-          "gantries": [67, 68],
+          "gantries": [46, 67, 68],
           "windowFilter": "evening"
         }
       ]
